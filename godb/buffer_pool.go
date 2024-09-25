@@ -86,11 +86,19 @@ func (bp *BufferPool) GetPage(file DBFile, pageNo int, tid TransactionID, perm R
 		return nil, err
 	}
 	if len(bp.pages) == bp.numPages {
+		deleted := false
 		// if full, evict a page with random eviction policy
 		for key, page := range bp.pages {
 			if !page.isDirty() {
 				delete(bp.pages, key)
+				deleted = true
 				break
+			}
+		}
+		if !deleted {
+			return nil, GoDBError{
+				code: BufferPoolFullError,
+				errString: "buffer pool is full",
 			}
 		}
 	}

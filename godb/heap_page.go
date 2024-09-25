@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"strconv"
-	"strings"
 )
 
 /* HeapPage implements the Page interface for pages of HeapFiles. We have
@@ -59,6 +57,10 @@ type heapPage struct {
 	tuples []*Tuple
 	
 }
+type rID struct {
+	pageNo int
+	slotNo int
+}
 
 // Construct a new heap page
 func newHeapPage(desc *TupleDesc, pageNo int, f *HeapFile) (*heapPage, error) {
@@ -100,17 +102,17 @@ func (h *heapPage) insertTuple(t *Tuple) (recordID, error) {
 			return t.Rid, nil
 		}
 	}
-	return "", fmt.Errorf("no free slots")
+	return "", GoDBError{code: PageFullError, errString: "no free slots on page"}
 }
 
 // return a record ID for at the specified slot number
 func (h *heapPage) slotNoToRid(slotNo int) recordID {
-	return fmt.Sprintf("%d-%d", h.pageNo, slotNo)
+	return rID{pageNo: h.pageNo, slotNo: slotNo}
 }
 
 // return a slot number for the specified record ID
 func (h *heapPage) ridToSlotNo(rid recordID) (int, error) {
-	return strconv.Atoi(strings.Split(rid.(string), "-")[1])
+	return rid.(rID).slotNo, nil
 }
 
 
@@ -123,7 +125,7 @@ func (h *heapPage) deleteTuple(rid recordID) error {
 		return err
 	}
 	if h.tuples[slotNo] == nil {
-		return fmt.Errorf("no tuple at slot %d", slotNo)
+		return GoDBError{code: TupleNotFoundError, errString: "tuple not found"}
 	}
 	h.tuples[slotNo] = nil
 	h.setDirty(0, true)
@@ -172,6 +174,8 @@ func (h *heapPage) toBuffer() (*bytes.Buffer, error) {
 			}
 		}
 	}
+	padding := make([]byte, PageSize-buf.Len())
+	buf.Write(padding)
 	return buf, nil
 }
 
@@ -184,7 +188,10 @@ func (h *heapPage) initFromBuffer(buf *bytes.Buffer) error {
 		return err
 	}
 	if numSlots != int32(h.getNumSlots()) {
-		return fmt.Errorf("numSlots from buffer %d does not match expected %d", numSlots, h.getNumSlots())
+		return GoDBError{
+			code: MalformedDataError,
+			errString: fmt.Sprintf("numSlots from buffer %d does not match expected %d", numSlots, h.getNumSlots()),
+		}
 	}
 	if err := binary.Read(buf, binary.LittleEndian, &numUsedSlots); err != nil {
 		return err
@@ -215,7 +222,8 @@ func (p *heapPage) tupleIter() func() (*Tuple, error) {
 		if slotNo >= len(p.tuples) {
 			return nil, nil
 		}
+		tuple := p.tuples[slotNo]
 		slotNo++
-		return p.tuples[slotNo], nil
+		return tuple, nil
 	}
 }
