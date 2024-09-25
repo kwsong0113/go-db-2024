@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unsafe"
 )
 
 // DBType is the type of a tuple field, in GoDB, e.g., IntType or StringType
@@ -394,6 +395,22 @@ func (d *TupleDesc) HeaderString(aligned bool) string {
 		}
 	}
 	return outstr
+}
+
+// Return an estimated byte size of the tuple implementing the tuple descriptor
+func (d *TupleDesc) ByteSize() int {
+	size := 0
+	intSize := (int)(unsafe.Sizeof(int64(0)))
+	strSize := ((int)(unsafe.Sizeof(byte('a')))) * StringLength
+	for _, f := range d.Fields {
+		switch f.Ftype {
+		case IntType:
+			size += intSize
+		case StringType:
+			size += strSize	
+		}
+	}
+	return size
 }
 
 // Return a string representing the tuple
