@@ -5,10 +5,6 @@ package godb
 //It is also the primary way in which transactions are enforced, by using page
 //level locking (you will not need to worry about this until lab3).
 
-import (
-	"fmt"
-)
-
 // Permissions used to when reading / locking pages
 type RWPerm int
 
@@ -19,11 +15,16 @@ const (
 
 type BufferPool struct {
 	// TODO: some code goes here
+	pages map[any]Page
+	numPages int
 }
 
 // Create a new BufferPool with the specified number of pages
 func NewBufferPool(numPages int) (*BufferPool, error) {
-	return &BufferPool{}, fmt.Errorf("NewBufferPool not implemented")
+	return &BufferPool{
+		pages: make(map[any]Page),
+		numPages: numPages,
+	}, nil
 }
 
 // Testing method -- iterate through all pages in the buffer pool
@@ -31,6 +32,13 @@ func NewBufferPool(numPages int) (*BufferPool, error) {
 // Mark pages as not dirty after flushing them.
 func (bp *BufferPool) FlushAllPages() {
 	// TODO: some code goes here
+	if bp == nil {
+		return
+	}
+	for _, page := range bp.pages {
+		page.getFile().flushPage(page)
+		page.setDirty(0, false)
+	}
 }
 
 // Abort the transaction, releasing locks. Because GoDB is FORCE/NO STEAL, none
@@ -69,5 +77,23 @@ func (bp *BufferPool) BeginTransaction(tid TransactionID) error {
 // implement locking or deadlock detection. You will likely want to store a list
 // of pages in the BufferPool in a map keyed by the [DBFile.pageKey].
 func (bp *BufferPool) GetPage(file DBFile, pageNo int, tid TransactionID, perm RWPerm) (Page, error) {
-	return nil, fmt.Errorf("GetPage not implemented")
+	pageKey := file.pageKey(pageNo)
+	if page, ok := bp.pages[pageKey]; ok {
+		return page, nil
+	}
+	page, err := file.readPage(pageNo)
+	if err != nil {
+		return nil, err
+	}
+	if len(bp.pages) == bp.numPages {
+		// if full, evict a page with random eviction policy
+		for key, page := range bp.pages {
+			if !page.isDirty() {
+				delete(bp.pages, key)
+				break
+			}
+		}
+	}
+	bp.pages[pageKey] = page
+	return page, nil
 }
