@@ -1,0 +1,23 @@
+1. Exercise 1 - `tuple.go`
+
+I've successfully implemented all methods in `tuple.go`. There are no specific design decisions or changes that I made in this exercise, as they are mostly implementing the methods with clear signatures. The most challenging part was writing/reading a Tuple to/from a buffer, as I was not familiar with the `binary` package in golang.
+
+2. Exercise 2 - Buffer Pool
+For `BufferPool` struct, I added two fields: `pages` and `numPages`. `numPages` is needed as a buffer pool has a cap on the number of pages it can store. `pages` is a map that maps a page key to a page. For page key, since it needs to be unique across heap files and pages, I used the `heapHash` struct.
+
+As I had a freedom to choose an eviction policy, I chose a random eviction policy to keep the implementation minimal. The code simply iterates over the map and evicts the first non-dirty page it meets.
+
+3. Exercise 3 - Heap Page
+For `heapPage` struct, I used 5 fields: `desc`, `pageNo`, `file`, `dirty`, `tuples`. `desc` is a tuple descriptor for the table that the page belongs to, which we need to save so that we can use it to deserialize the contents from the buffer. `pageNo` should be kept so that we can convert slot number to record id back and forth. `file` is also need to implement `getFile` method. `dirty` is a flag that indicates whether the page is dirty or not, which will be directly modified by `setDirty` method. `tuples` is simply a slice of tuples that the page contains. When deleting, we simply set the tuple at the slot to nil. Since it is ok to renumber the slots after writing/reading back from the disk, I set the first `numUsedSlots` slots to the tuples that are not nil when writing to the buffer. This way, we can easily read the tuples back from the buffer, as the first `numUsedSlots` slots are guaranteed to be the tuples that are meaningful.
+
+4. Exercise 4 - Heap File
+For `HeapFile` struct, I added 2 fields: 'backingFile` and 'desc`. `desc` is a tuple descriptor that is needed for implementing `Descriptor()` method. The file name (`backingFile`) should be stored as a field so that we can calcaulte `numPages` from the file and flush pages to the file with `flushPage` method.
+
+When creating a new heap file, I simply create a new file with the given name if it does not exist, which enabled me to pass the test cases. When inserting/deleting a tuple, essentially the logic is finding an appropriate page to insert/delete the tuple. If there is no page to insert, the code creates a new page and inserts the tuple to the page. Instead of reading the page from the disk every time, I used the buffer pool's `GetPage` method to reduce the number of disk reads.
+
+I think this exercise was the most difficult one, as it incorporates all other components like page and buffer pool. I learned that I should more thoroughly and incrementally test the code to make sure each module works correctly!
+
+5. Exercise 5 - Simple Query
+In `computeFieldSum` function, I create a new heap file with non-existing file name, and load the csv file into the heap file using `LoadFromCSV` method. Then, I iterate over all the tuples using `Iterator` method, and for each tuple, I find the desired field using Tuple's `project` method, and add it to the current sum. I think the `project` method was particularly useful in this exercise, as it allowed me to avoid writing the code that iterates all the fields in the tuple again. At the end, I return the sum, which is the sum of the desired field in all rows.
+
+6. Overall, I've spent about 6 hours on this assignment, which includes reviewing the lecture slides and readings (1.5hrs), implementing & debugging the code (3.5-4hrs), and writing the writeup (0.5-1hrs).
