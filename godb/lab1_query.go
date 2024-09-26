@@ -1,7 +1,7 @@
 package godb
 
 import (
-	"fmt"
+	"os"
 )
 
 /*
@@ -24,5 +24,38 @@ Note that you should NOT pass fileName into NewHeapFile -- fileName is a CSV
 file that you should call LoadFromCSV on.
 */
 func computeFieldSum(bp *BufferPool, fileName string, td TupleDesc, sumField string) (int, error) {
-	return 0, fmt.Errorf("computeFieldSum not implemented") // replace me
+	nonExistentFileName := fileName[:len(fileName)-4] + "_nonexistent.csv"
+	os.Remove(nonExistentFileName)
+	heapFile, err := NewHeapFile(nonExistentFileName, &td, bp)
+	if err != nil {
+		return 0, err
+	}
+	file, err := os.Open(fileName)
+	if err != nil {
+		return 0, err
+	}
+	err = heapFile.LoadFromCSV(file, true, ",", false)
+	if err != nil {
+		return 0, err
+	}
+	iter, err := heapFile.Iterator(0)
+	if err != nil {
+		return 0, err
+	}
+	sum := 0
+	for {
+		tuple, err := iter()
+		if err != nil {
+			return 0, err
+		}
+		if tuple == nil {
+			break
+		}
+		tuple, err = tuple.project([]FieldType{{sumField, "", IntType}})
+		if err != nil {
+			return 0, err
+		}
+		sum += int(tuple.Fields[0].(IntField).Value)
+	}
+	return sum, nil
 }

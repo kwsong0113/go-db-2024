@@ -37,6 +37,8 @@ func NewHeapFile(fromFile string, td *TupleDesc, bp *BufferPool) (*HeapFile, err
 			return nil, err
 		}
 		file.Close()
+	} else if err != nil {
+		return nil, err
 	}
 	return &HeapFile{
 		backingFile: fromFile,
