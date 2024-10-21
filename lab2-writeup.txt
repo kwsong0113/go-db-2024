@@ -13,3 +13,10 @@ Your lab report should be brief (maximum of 2 pages) and contain the collowing
 - I've implemented the Filter operator by 1) `Descriptor()` simply returning the descriptor of the child operator, 2) `Iterator()` returning a new iterator that iterates over the child operator's iterator and only returns the tuples that satisfy the predicate.
 
 - For the Join operator, I've wrote two implementations - simple nested loop join and block hash join. The nested loop join simply iterates over the left child operator once and for each left tuple, iterates over the right child operator, which is inefficient. To make it much faster while satisfying the condition to not exceed `maxBufferSize`, I've implemented the block hash join, which builds a partial hash table for the right child operator and iterates over the left child operator (and repeat this until we exhaust all right tuples). This way, I was able to speed up the join operation significantly. However, I wasn't able to pass the `TestJoinBigOptional` test due to the slow performance of `insertTuple` function (the join operation itself is fast enough). I plan to spend more time on `insertTuple` function to make it faster.
+
+2. Exercise 2 - `agg_state.go` and `agg_op.go`
+
+- For `agg_state.go`, I've implemented the four aggregation operators, including SUM, AVG, MIN, and MAX. I need to maintain a number representing the running aggregation result, and I chose sum for SUM and AVG, min for MIN, and max for MAX. This way, it is possible to return the aggregation result with a simple computation when `Finalize()` is called.
+- For `agg_state.go`, I've simply implemented the given three functions - `Descriptor()`, `extractGroupByKeyTuple`, and `getFinalizedTuplesIterator`. I think the core idea here was to join the "group tuple" with all "aggregation result tuples".
+
+3. Exercise 3 - `insert_op.go` and `delete_op.go`
