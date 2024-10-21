@@ -1,13 +1,12 @@
 package godb
 
-import (
-	"fmt"
-)
+import "sort"
 
 type OrderBy struct {
 	orderBy []Expr // OrderBy should include these two fields (used by parser)
 	child   Operator
 	// TODO: You may want to add additional fields here
+	ascending []bool
 }
 
 // Construct an order by operator. Saves the list of field, child, and ascending
@@ -17,8 +16,8 @@ type OrderBy struct {
 // should be in ascending (true) or descending (false) order.
 func NewOrderBy(orderByFields []Expr, child Operator, ascending []bool) (*OrderBy, error) {
 	// TODO: some code goes here
-	return nil, fmt.Errorf("NewOrderBy not implemented.") //replace me
-
+	return &OrderBy{orderBy: orderByFields, child: child, ascending: ascending}, nil
+ 
 }
 
 // Return the tuple descriptor.
@@ -27,8 +26,67 @@ func NewOrderBy(orderByFields []Expr, child Operator, ascending []bool) (*OrderB
 // fields that are emitted.
 func (o *OrderBy) Descriptor() *TupleDesc {
 	// TODO: some code goes here
-	return &TupleDesc{} // replace me
+	return o.child.Descriptor()
 }
+
+type lessFunc func(t1, t2 *Tuple) bool
+type multiSorter struct {
+	tuples []*Tuple
+	less   []lessFunc
+}
+
+func (ms *multiSorter) Len() int {
+	return len(ms.tuples)
+}
+
+func (ms *multiSorter) Swap(i, j int) {
+	ms.tuples[i], ms.tuples[j] = ms.tuples[j], ms.tuples[i]
+}
+
+func (ms *multiSorter) Less(i, j int) bool {
+	t1, t2 := ms.tuples[i], ms.tuples[j]
+	for _, less := range ms.less {
+		if less(t1, t2) {
+			return true
+		} else if less(t2, t1) {
+			return false
+		}
+	}
+	return ms.less[len(ms.less)-1](t1, t2)
+}
+
+func createLessFunc(field Expr, ascending bool) lessFunc {
+	return func(t1, t2 *Tuple) bool {
+		f1, err1 := field.EvalExpr(t1)
+		if err1 != nil {
+			return false
+		}
+		f2, err2 := field.EvalExpr(t2)
+		if err2 != nil {
+			return false
+		}
+		if ascending {
+			return f1.EvalPred(f2, OpLt)
+		} else {
+			return f2.EvalPred(f1, OpLt)
+		}
+	}
+}
+
+func (o *OrderBy) sort(tuples []*Tuple) {
+	less := make([]lessFunc, len(o.orderBy))
+	for i, field := range o.orderBy {
+		less[i] = createLessFunc(field, o.ascending[i])
+	}
+	ms := &multiSorter{
+		tuples: tuples,
+		less:   less,
+	}
+	sort.Sort(ms)
+}
+
+
+
 
 // Return a function that iterates through the results of the child iterator in
 // ascending/descending order, as specified in the constructor.  This sort is
@@ -44,5 +102,33 @@ func (o *OrderBy) Descriptor() *TupleDesc {
 // https://pkg.go.dev/sort
 func (o *OrderBy) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
 	// TODO: some code goes here
-	return nil, fmt.Errorf("OrderBy.Iterator not implemented") // replace me
+	childIter, err := o.child.Iterator(tid)
+	if err != nil {
+		return nil, err
+	}
+	var tuples []*Tuple
+	idx := 0
+
+	return func() (*Tuple, error) {
+		if tuples == nil {
+			tuples = make([]*Tuple, 0)
+			for {
+				t, err := childIter()
+				if err != nil {
+					return nil, err
+				}
+				if t == nil {
+					break
+				}
+				tuples = append(tuples, t)
+			}
+			o.sort(tuples)
+		}
+		if idx >= len(tuples) {
+			return nil, nil
+		}
+		t := tuples[idx]
+		idx++
+		return t, nil
+	}, nil
 }

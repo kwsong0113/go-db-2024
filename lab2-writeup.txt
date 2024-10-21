@@ -29,3 +29,5 @@ Your lab report should be brief (maximum of 2 pages) and contain the collowing
 - One additional core idea to implement the `Project` operator was to properly replace the field names with `outputNames`. When calling `.project()` to a tuple, I used the original field types, and then replaced the tuple descriptor right before returning the tuple.
 
 5. Exercise 5 - `order_by_op.go`
+- I've added a bool[] field `ascending` to the `OrderBy` struct to store whether to sort in ascending or descending order for each field. The `Descriptor()` method simply returns the descriptor of the child operator.
+- `Iterator()`: First, I implemented `multiSorter` which enables sorting a slice of tuples by multiple less functions. This is done by implementing the `sort.Interface` interface. Then, I wrote a helper method `sort` for `OrderBy` struct, which sorts the tuples by creating a `multiSorter` with proper less functions, and then sorting the tuples using the `sort.Sort()`. The iterator sorts the tuples at once beforehand, and then returns the sorted tuples one by one when called.
