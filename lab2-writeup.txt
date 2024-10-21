@@ -31,3 +31,6 @@ Your lab report should be brief (maximum of 2 pages) and contain the collowing
 5. Exercise 5 - `order_by_op.go`
 - I've added a bool[] field `ascending` to the `OrderBy` struct to store whether to sort in ascending or descending order for each field. The `Descriptor()` method simply returns the descriptor of the child operator.
 - `Iterator()`: First, I implemented `multiSorter` which enables sorting a slice of tuples by multiple less functions. This is done by implementing the `sort.Interface` interface. Then, I wrote a helper method `sort` for `OrderBy` struct, which sorts the tuples by creating a `multiSorter` with proper less functions, and then sorting the tuples using the `sort.Sort()`. The iterator sorts the tuples at once beforehand, and then returns the sorted tuples one by one when called.
+
+6. Exercise 6 - `limit_op.go`
+- The limit operator's implementation is very simple. `limitTups` field maintains the `Expr` that always returns the limit count when `EvalExpr` is called. When `Iterator()` is called, I simply return an iterator that returns a tuple from the child operator's iterator if the current count is less than the limit count. Otherwise, it returns `nil`.

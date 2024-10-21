@@ -1,9 +1,5 @@
 package godb
 
-import (
-"fmt"
-)
-
 type LimitOp struct {
 	// Required fields for parser
 	child     Operator
@@ -14,13 +10,13 @@ type LimitOp struct {
 // Construct a new limit operator. lim is how many tuples to return and child is
 // the child operator.
 func NewLimitOp(lim Expr, child Operator) *LimitOp {
-	return &LimitOp{child, lim}
+	return &LimitOp{child: child, limitTups: lim}
 }
 
 // Return a TupleDescriptor for this limit.
 func (l *LimitOp) Descriptor() *TupleDesc {
 	// TODO: some code goes here
-	return &TupleDesc{} // replace me
+	return l.child.Descriptor()
 }
 
 // Limit operator implementation. This function should iterate over the results
@@ -28,5 +24,27 @@ func (l *LimitOp) Descriptor() *TupleDesc {
 // sees (where lim is specified in the constructor).
 func (l *LimitOp) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
 	// TODO: some code goes here
-	return nil, fmt.Errorf("LimitOp.Iterator not implemented") // replace me
+	childIter, err := l.child.Iterator(tid)
+	if err != nil {
+		return nil, err
+	}
+	count := int64(0)
+	return func() (*Tuple, error) {
+		tup, err := childIter()
+		if err != nil {
+			return nil, err
+		}
+		if tup == nil {
+			return nil, nil
+		}
+		lim, err := l.limitTups.EvalExpr(tup)
+		if err != nil {
+			return nil, err
+		}
+		if count < lim.(IntField).Value {
+			count++
+			return tup, nil
+		}
+		return nil, nil
+	}, nil
 }
