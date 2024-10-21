@@ -1,13 +1,12 @@
 package godb
 
-import "fmt"
-
 type Project struct {
 	selectFields []Expr // required fields for parser
 	outputNames  []string
 	child        Operator
 	// You may want to add additional fields here
 	// TODO: some code goes here
+	distinct bool
 }
 
 // Construct a projection operator. It saves the list of selected field, child,
@@ -18,7 +17,7 @@ type Project struct {
 // and child is the child operator.
 func NewProjectOp(selectFields []Expr, outputNames []string, distinct bool, child Operator) (Operator, error) {
 	// TODO: some code goes here
-	return nil, fmt.Errorf("NewProjectOp not implemented.") // replace me
+	return &Project{selectFields: selectFields, outputNames: outputNames, child: child, distinct: distinct}, nil
 }
 
 // Return a TupleDescriptor for this projection. The returned descriptor should
@@ -28,8 +27,13 @@ func NewProjectOp(selectFields []Expr, outputNames []string, distinct bool, chil
 // HINT: you can use expr.GetExprType() to get the field type
 func (p *Project) Descriptor() *TupleDesc {
 	// TODO: some code goes here
-	return &TupleDesc{} // replace me
-
+	fts := make([]FieldType, len(p.selectFields))
+	for i, expr := range p.selectFields {
+		ft := expr.GetExprType()
+		ft.Fname = p.outputNames[i]
+		fts[i] = ft
+	}
+	return &TupleDesc{Fields: fts}
 }
 
 // Project operator implementation. This function should iterate over the
@@ -40,5 +44,38 @@ func (p *Project) Descriptor() *TupleDesc {
 // optional as specified in the lab 2 assignment.
 func (p *Project) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
 	// TODO: some code goes here
-	return nil, fmt.Errorf("Project.Iterator not implemented") // replace me
+	distinctTuples := make(map[any]bool)
+	childIter, err := p.child.Iterator(tid)
+	if err != nil {
+		return nil, err
+	}
+	ftsToProject := make([]FieldType, len(p.selectFields))
+	desc := p.Descriptor()
+	for i, expr := range p.selectFields {
+		ftsToProject[i] = expr.GetExprType()
+	}
+	return func() (*Tuple, error) {
+		for {
+			t, err := childIter()
+			if err != nil {
+				return nil, err
+			}
+			if t == nil {
+				return nil, nil
+			}
+			t, err = t.project(ftsToProject)
+			if err != nil {
+				return nil, err
+			}
+			if p.distinct {
+				if distinctTuples[t.tupleKey()] {
+					continue
+				} else {
+					distinctTuples[t.tupleKey()] = true
+				}
+			}
+			t.Desc = *desc
+			return t, nil
+		}
+	}, nil
 }

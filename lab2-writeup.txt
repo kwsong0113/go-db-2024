@@ -24,3 +24,8 @@ Your lab report should be brief (maximum of 2 pages) and contain the collowing
 - The implementations for insert and delete operators are very similar. First, I chose to maintain two fields, `insertFile` (or `deleteFile`) and `child`. `insertFile` (or `deleteFile`) is to access the file when executing the insert (or delete) operation, and `child` is to access the child operator's iterator, just like other operators. When `Iterator()` is called, I simply return a new iterator that iterates over the child operator's iterator, inserts (or deletes) all the tuples, and returns the count of inserted (or deleted) tuples. Here, I added a `done` local variable to check if the operation is done or not, so that the iterator simply returns `nil` when the operation is already done.
 
 4. Exercise 4 - `project_op.go`
+
+- To support the DISTINCT keyword, I added a boolean field `distinct` to the `Project` struct. When `Iterator()` is called, I initialize an empty map to store the tuples that are already returned. Specifically, `Tuple.tupleKey()` is used as the key of the map. If the `distinct` field is true, whenever before returning a tuple, I check if the tuple is already in the map. If it is, I skip the tuple and otherwise, I return the tuple and add it to the map.
+- One additional core idea to implement the `Project` operator was to properly replace the field names with `outputNames`. When calling `.project()` to a tuple, I used the original field types, and then replaced the tuple descriptor right before returning the tuple.
+
+5. Exercise 5 - `order_by_op.go`
