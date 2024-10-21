@@ -1,9 +1,5 @@
 package godb
 
-import (
-"fmt"
-)
-
 type EqualityJoin struct {
 	// Expressions that when applied to tuples from the left or right operators,
 	// respectively, return the value of the left or right side of the join
@@ -29,7 +25,7 @@ func NewJoin(left Operator, leftField Expr, right Operator, rightField Expr, max
 // HINT: use [TupleDesc.merge].
 func (hj *EqualityJoin) Descriptor() *TupleDesc {
 	// TODO: some code goes here
-	return &TupleDesc{} // replace me
+	return (*hj.left).Descriptor().merge((*hj.right).Descriptor())
 }
 
 // Join operator implementation. This function should iterate over the results
@@ -51,5 +47,49 @@ func (hj *EqualityJoin) Descriptor() *TupleDesc {
 // loops join.
 func (joinOp *EqualityJoin) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
 	// TODO: some code goes here
-	return nil, fmt.Errorf("EqualityJoin.Iterator not implemented") // replace me
+	leftIter, err := (*joinOp.left).Iterator(tid)
+	if err != nil {
+		return nil, err
+	}
+	left, err := leftIter()
+	if err != nil {
+		return nil, err
+	}
+	rightIter, err := (*joinOp.right).Iterator(tid)
+	if err != nil {
+		return nil, err
+	}
+	return func() (*Tuple, error) {
+		for {
+			if left == nil {
+				return nil, nil
+			}
+			right, err := rightIter()
+			if err != nil {
+				return nil, err
+			}
+			if right == nil {
+				left, err = leftIter()
+				if err != nil {
+					return nil, err
+				}
+				rightIter, err = (*joinOp.right).Iterator(tid)
+				if err != nil {
+					return nil, err
+				}
+				continue
+			}
+			leftVal, err := joinOp.leftField.EvalExpr(left)
+			if err != nil {
+				return nil, err
+			}
+			rightVal, err := joinOp.rightField.EvalExpr(right)
+			if err != nil {
+				return nil, err
+			}
+			if leftVal.EvalPred(rightVal, OpEq) {
+				return joinTuples(left, right), nil
+			}
+		}
+	}, nil
 }
