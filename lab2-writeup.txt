@@ -11,8 +11,8 @@ Your lab report should be brief (maximum of 2 pages) and contain the collowing
 1. Exercise 1 - `filter_op.go` and `join_op.go`
 
 - I've implemented the Filter operator by 1) `Descriptor()` simply returning the descriptor of the child operator, 2) `Iterator()` returning a new iterator that iterates over the child operator's iterator and only returns the tuples that satisfy the predicate.
-
 - For the Join operator, I've wrote two implementations - simple nested loop join and block hash join. The nested loop join simply iterates over the left child operator once and for each left tuple, iterates over the right child operator, which is inefficient. To make it much faster while satisfying the condition to not exceed `maxBufferSize`, I've implemented the block hash join, which builds a partial hash table for the right child operator and iterates over the left child operator (and repeat this until we exhaust all right tuples). This way, I was able to speed up the join operation significantly. However, I wasn't able to pass the `TestJoinBigOptional` test due to the slow performance of `insertTuple` function (the join operation itself is fast enough). I plan to spend more time on `insertTuple` function to make it faster.
+- Algorithm trade-off: Simple nested loop join uses minimal memory, as it iterates over all inner tuples for each outer tuple. This makes it very slow (I/O complexity is O(N + N*M)). On the other hand, block hash join is much faster as it builds a hash table for the inner tuples (as large as possible within the buffer limit). For each outer tuple, we can simply look up the hash table to find the matching inner tuples. Instead, it uses more memory than the nested loop join. Also, there is additional cost to build the hash table. In summary, the trade-off is between memory usage and speed.
 
 2. Exercise 2 - `agg_state.go` and `agg_op.go`
 
@@ -26,7 +26,7 @@ Your lab report should be brief (maximum of 2 pages) and contain the collowing
 4. Exercise 4 - `project_op.go`
 
 - To support the DISTINCT keyword, I added a boolean field `distinct` to the `Project` struct. When `Iterator()` is called, I initialize an empty map to store the tuples that are already returned. Specifically, `Tuple.tupleKey()` is used as the key of the map. If the `distinct` field is true, whenever before returning a tuple, I check if the tuple is already in the map. If it is, I skip the tuple and otherwise, I return the tuple and add it to the map.
-- One additional core idea to implement the `Project` operator was to properly replace the field names with `outputNames`. When calling `.project()` to a tuple, I used the original field types, and then replaced the tuple descriptor right before returning the tuple.
+- One additional core idea to implement the `Project` operator was to call `EvalExpr` for each selected field, and using the descriptor from `Descriptor()` to build the new tuple.
 
 5. Exercise 5 - `order_by_op.go`
 - I've added a bool[] field `ascending` to the `OrderBy` struct to store whether to sort in ascending or descending order for each field. The `Descriptor()` method simply returns the descriptor of the child operator.
@@ -34,3 +34,6 @@ Your lab report should be brief (maximum of 2 pages) and contain the collowing
 
 6. Exercise 6 - `limit_op.go`
 - The limit operator's implementation is very simple. `limitTups` field maintains the `Expr` that always returns the limit count when `EvalExpr` is called. When `Iterator()` is called, I simply return an iterator that returns a tuple from the child operator's iterator if the current count is less than the limit count. Otherwise, it returns `nil`.
+
+7. Exercise 7 - Easy parser
+- While debugging `easy_parser_test.go`, I fixed several bugs in `project_op.go` (I originally used `project()` method here instead of `EvalExpr()`), and `heap_file.go` (to replace tuple's descriptor with heap file's descriptor when returning a tuple from the iterator).
