@@ -1,13 +1,3 @@
-Your lab report should be brief (maximum of 2 pages) and contain the collowing
-
-• Describe any design decisions you made.
-
-• Discuss and justify any changes you made to the API.
-
-• Describe any missing or incomplete elements of your code.
-
-• Describe how long you spent on the lab, and whether there was anything you found particularly difficult or confusing.
-
 1. Exercise 1 - `filter_op.go` and `join_op.go`
 
 - I've implemented the Filter operator by 1) `Descriptor()` simply returning the descriptor of the child operator, 2) `Iterator()` returning a new iterator that iterates over the child operator's iterator and only returns the tuples that satisfy the predicate.
@@ -37,3 +27,5 @@ Your lab report should be brief (maximum of 2 pages) and contain the collowing
 
 7. Exercise 7 - Easy parser
 - While debugging `easy_parser_test.go`, I fixed several bugs in `project_op.go` (I originally used `project()` method here instead of `EvalExpr()`), and `heap_file.go` (to replace tuple's descriptor with heap file's descriptor when returning a tuple from the iterator).
+
+8. Overall, I've spent about 4 hours on this assignment, which includes implementing exercises 1-6 (4hrs) and debugging `easy_parser_test.go` (2hrs). I think it was particularly difficult to debug the test cases in `easy_parser_test.go` as there are many components involved, and each component has already passed the unit tests. Probably, it would be more helpful if unit tests for each exercise are more rigorous.
