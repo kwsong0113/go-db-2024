@@ -1,5 +1,6 @@
 package godb
 
+
 type EqualityJoin struct {
 	// Expressions that when applied to tuples from the left or right operators,
 	// respectively, return the value of the left or right side of the join
@@ -47,11 +48,55 @@ func (hj *EqualityJoin) Descriptor() *TupleDesc {
 // loops join.
 func (joinOp *EqualityJoin) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
 	// TODO: some code goes here
+	// -----------------------Simple Nested Loop Join-----------------------
+	// leftIter, err := (*joinOp.left).Iterator(tid)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// left, err := leftIter()
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// rightIter, err := (*joinOp.right).Iterator(tid)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// return func() (*Tuple, error) {
+	// 	for {
+	// 		if left == nil {
+	// 			return nil, nil
+	// 		}
+	// 		right, err := rightIter()
+	// 		if err != nil {
+	// 			return nil, err
+	// 		}
+	// 		if right == nil {
+	// 			left, err = leftIter()
+	// 			if err != nil {
+	// 				return nil, err
+	// 			}
+	// 			rightIter, err = (*joinOp.right).Iterator(tid)
+	// 			if err != nil {
+	// 				return nil, err
+	// 			}
+	// 			continue
+	// 		}
+	// 		leftVal, err := joinOp.leftField.EvalExpr(left)
+	// 		if err != nil {
+	// 			return nil, err
+	// 		}
+	// 		rightVal, err := joinOp.rightField.EvalExpr(right)
+	// 		if err != nil {
+	// 			return nil, err
+	// 		}
+	// 		if leftVal.EvalPred(rightVal, OpEq) {
+	// 			return joinTuples(left, right), nil
+	// 		}
+	// 	}
+	// }, nil
+	// -----------------------Block Hash Join-----------------------
+
 	leftIter, err := (*joinOp.left).Iterator(tid)
-	if err != nil {
-		return nil, err
-	}
-	left, err := leftIter()
 	if err != nil {
 		return nil, err
 	}
@@ -59,37 +104,92 @@ func (joinOp *EqualityJoin) Iterator(tid TransactionID) (func() (*Tuple, error),
 	if err != nil {
 		return nil, err
 	}
-	return func() (*Tuple, error) {
+
+	// utility function to build block hash table that does not exceed maxBufferSize
+	buildHashTable := func() (map[DBValue][]*Tuple, error) {
+		hashTable := make(map[DBValue][]*Tuple)
+		count := 0
 		for {
-			if left == nil {
-				return nil, nil
-			}
-			right, err := rightIter()
+			t, err := rightIter()
 			if err != nil {
 				return nil, err
 			}
-			if right == nil {
+			if t == nil {
+				break
+			}
+			key, err := joinOp.rightField.EvalExpr(t)
+			if err != nil {
+				return nil, err
+			}
+			hashTable[key] = append(hashTable[key], t)
+			count++
+			if count >= joinOp.maxBufferSize {
+				break
+			}
+		}
+		return hashTable, nil
+	}
+
+	var hashTable map[DBValue][]*Tuple
+
+	getHashTableIterator := func(val DBValue) func() (*Tuple, error) {
+		tuples := hashTable[val]
+		idx := 0
+		return func() (*Tuple, error) {
+			if idx >= len(tuples) {
+				return nil, nil
+			}
+			t := tuples[idx]
+			idx++
+			return t, nil
+		}
+	}
+
+	var left *Tuple
+	var hashIter func() (*Tuple, error) 
+
+	return func() (*Tuple, error) {
+		for {
+			if hashTable == nil {
+				hashTable, err = buildHashTable()
+				if err != nil {
+					return nil, err
+				}
+			}
+			if len(hashTable) == 0 {
+				return nil, nil
+			}
+			if left == nil {
 				left, err = leftIter()
 				if err != nil {
 					return nil, err
 				}
-				rightIter, err = (*joinOp.right).Iterator(tid)
+				if left == nil {
+					leftIter, err = (*joinOp.left).Iterator(tid)
+					if err != nil {
+						return nil, err
+					}
+					hashTable = nil
+					continue
+				}
+			}
+			if hashIter == nil {
+				leftVal, err := joinOp.leftField.EvalExpr(left)
 				if err != nil {
 					return nil, err
 				}
+				hashIter = getHashTableIterator(leftVal)
+			}
+			right, err := hashIter()
+			if err != nil {
+				return nil, err
+			}
+			if right == nil {
+				left = nil
+				hashIter = nil
 				continue
 			}
-			leftVal, err := joinOp.leftField.EvalExpr(left)
-			if err != nil {
-				return nil, err
-			}
-			rightVal, err := joinOp.rightField.EvalExpr(right)
-			if err != nil {
-				return nil, err
-			}
-			if leftVal.EvalPred(rightVal, OpEq) {
-				return joinTuples(left, right), nil
-			}
+			return joinTuples(left, right), nil
 		}
 	}, nil
 }

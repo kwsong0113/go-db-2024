@@ -1,0 +1,15 @@
+Your lab report should be brief (maximum of 2 pages) and contain the collowing
+
+• Describe any design decisions you made.
+
+• Discuss and justify any changes you made to the API.
+
+• Describe any missing or incomplete elements of your code.
+
+• Describe how long you spent on the lab, and whether there was anything you found particularly difficult or confusing.
+
+1. Exercise 1 - `filter_op.go` and `join_op.go`
+
+- I've implemented the Filter operator by 1) `Descriptor()` simply returning the descriptor of the child operator, 2) `Iterator()` returning a new iterator that iterates over the child operator's iterator and only returns the tuples that satisfy the predicate.
+
+- For the Join operator, I've wrote two implementations - simple nested loop join and block hash join. The nested loop join simply iterates over the left child operator once and for each left tuple, iterates over the right child operator, which is inefficient. To make it much faster while satisfying the condition to not exceed `maxBufferSize`, I've implemented the block hash join, which builds a partial hash table for the right child operator and iterates over the left child operator (and repeat this until we exhaust all right tuples). This way, I was able to speed up the join operation significantly. However, I wasn't able to pass the `TestJoinBigOptional` test due to the slow performance of `insertTuple` function (the join operation itself is fast enough). I plan to spend more time on `insertTuple` function to make it faster.
