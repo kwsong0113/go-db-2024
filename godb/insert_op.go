@@ -1,22 +1,23 @@
 package godb
 
-import "fmt"
-
 type InsertOp struct {
 	// TODO: some code goes here
+	insertFile DBFile
+	child Operator
 }
 
 // Construct an insert operator that inserts the records in the child Operator
 // into the specified DBFile.
 func NewInsertOp(insertFile DBFile, child Operator) *InsertOp {
 	// TODO: some code goes here
-	return nil
+	return &InsertOp{insertFile: insertFile, child: child}
 }
 
 // The insert TupleDesc is a one column descriptor with an integer field named "count"
 func (i *InsertOp) Descriptor() *TupleDesc {
 	// TODO: some code goes here
-	return nil
+	fts := []FieldType{{"count", "", IntType}}
+	return &TupleDesc{Fields: fts}
 }
 
 // Return an iterator function that inserts all of the tuples from the child
@@ -26,5 +27,31 @@ func (i *InsertOp) Descriptor() *TupleDesc {
 // method.
 func (iop *InsertOp) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
 	// TODO: some code goes here
-	return nil, fmt.Errorf("InsertOp.Iterator not implemented")
+	childIter, err := iop.child.Iterator(tid)
+	if err != nil {
+		return nil, err
+	}
+	done := false
+	return func() (*Tuple, error) {
+		if done {
+			return nil, nil
+		}
+		count := int64(0)
+		for {
+			t, err := childIter()
+			if err != nil {
+				return nil, err
+			}
+			if t == nil {
+				break
+			}
+			err = iop.insertFile.insertTuple(t, tid)
+			if err != nil {
+				return nil, err
+			}
+			count++
+		}
+		done = true
+		return &Tuple{Desc: *iop.Descriptor(), Fields: []DBValue{IntField{Value: count}}}, nil
+	}, nil
 }

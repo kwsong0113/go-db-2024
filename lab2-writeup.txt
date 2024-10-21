@@ -20,3 +20,7 @@ Your lab report should be brief (maximum of 2 pages) and contain the collowing
 - For `agg_state.go`, I've simply implemented the given three functions - `Descriptor()`, `extractGroupByKeyTuple`, and `getFinalizedTuplesIterator`. I think the core idea here was to join the "group tuple" with all "aggregation result tuples".
 
 3. Exercise 3 - `insert_op.go` and `delete_op.go`
+
+- The implementations for insert and delete operators are very similar. First, I chose to maintain two fields, `insertFile` (or `deleteFile`) and `child`. `insertFile` (or `deleteFile`) is to access the file when executing the insert (or delete) operation, and `child` is to access the child operator's iterator, just like other operators. When `Iterator()` is called, I simply return a new iterator that iterates over the child operator's iterator, inserts (or deletes) all the tuples, and returns the count of inserted (or deleted) tuples. Here, I added a `done` local variable to check if the operation is done or not, so that the iterator simply returns `nil` when the operation is already done.
+
+4. Exercise 4 - `project_op.go`
