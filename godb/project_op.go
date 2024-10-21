@@ -63,10 +63,15 @@ func (p *Project) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
 			if t == nil {
 				return nil, nil
 			}
-			t, err = t.project(ftsToProject)
-			if err != nil {
-				return nil, err
+			fields := make([]DBValue, len(p.selectFields))
+			for i, expr := range p.selectFields {
+				outf, err := expr.EvalExpr(t)
+				if err != nil {
+					return nil, err
+				}
+				fields[i] = outf
 			}
+			t = &Tuple{*desc, fields, nil}
 			if p.distinct {
 				if distinctTuples[t.tupleKey()] {
 					continue

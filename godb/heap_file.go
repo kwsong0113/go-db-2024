@@ -294,6 +294,7 @@ func (f *HeapFile) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
 				}
 				continue
 			}
+			t.Desc = *f.desc
 			return t, nil
 		}
 		return nil, nil

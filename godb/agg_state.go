@@ -175,7 +175,7 @@ type MaxAggState struct {
 	// TODO: some code goes here
 	alias string
 	expr  Expr
-	max any
+	max DBValue
 }
 
 func (a *MaxAggState) Copy() AggState {
@@ -195,28 +195,15 @@ func (a *MaxAggState) AddTuple(t *Tuple) {
 	// TODO: some code goes here
 	val, err := a.expr.EvalExpr(t)
 	if err == nil {
-		switch val.(type) {
-		case IntField:
-			if a.max == nil || intAggGetter(val) > a.max.(int64) {
-				a.max = intAggGetter(val)
-			}
-		case StringField:
-			if a.max == nil || stringAggGetter(val) > a.max.(string) {
-				a.max = stringAggGetter(val)
-			}
+		if a.max == nil || val.EvalPred(a.max, OpGt) {
+			a.max = val
 		}
 	}
 }
 
 func (a *MaxAggState) GetTupleDesc() *TupleDesc {
 	// TODO: some code goes here
-	var ft FieldType
-	switch a.max.(type) {
-	case int64:
-		ft = FieldType{a.alias, "", IntType}
-	case string:
-		ft = FieldType{a.alias, "", StringType}
-	}
+	ft := FieldType{a.alias, "", a.expr.GetExprType().Ftype}
 	fts := []FieldType{ft}
 	td := TupleDesc{}
 	td.Fields = fts
@@ -226,15 +213,7 @@ func (a *MaxAggState) GetTupleDesc() *TupleDesc {
 func (a *MaxAggState) Finalize() *Tuple {
 	// TODO: some code goes here
 	td := a.GetTupleDesc()
-	var f DBValue
-	switch a.max.(type) {
-	case int64:
-		f = IntField{a.max.(int64)}
-	case string:
-		f = StringField{a.max.(string)}
-	}
-	fs := []DBValue{f}
-	t := Tuple{*td, fs, nil}
+	t := Tuple{*td, []DBValue{a.max}, nil}
 	return &t
 }
 
@@ -245,7 +224,7 @@ type MinAggState struct {
 	// TODO: some code goes here
 	alias string
 	expr  Expr
-	min any
+	min DBValue
 }
 
 func (a *MinAggState) Copy() AggState {
@@ -264,28 +243,15 @@ func (a *MinAggState) Init(alias string, expr Expr) error {
 func (a *MinAggState) AddTuple(t *Tuple) {
 	val, err := a.expr.EvalExpr(t)
 	if err == nil {
-		switch val.(type) {
-		case IntField:
-			if a.min == nil || intAggGetter(val) < a.min.(int64) {
-				a.min = intAggGetter(val)
-			}
-		case StringField:
-			if a.min == nil || stringAggGetter(val) < a.min.(string) {
-				a.min = stringAggGetter(val)
-			}
+		if a.min == nil || val.EvalPred(a.min, OpLt) {
+			a.min = val
 		}
 	}
 }
 
 func (a *MinAggState) GetTupleDesc() *TupleDesc {
 	// TODO: some code goes here
-	var ft FieldType
-	switch a.min.(type) {
-	case int64:
-		ft = FieldType{a.alias, "", IntType}
-	case string:
-		ft = FieldType{a.alias, "", StringType}
-	}
+	ft := FieldType{a.alias, "", a.expr.GetExprType().Ftype}
 	fts := []FieldType{ft}
 	td := TupleDesc{}
 	td.Fields = fts
@@ -295,14 +261,6 @@ func (a *MinAggState) GetTupleDesc() *TupleDesc {
 func (a *MinAggState) Finalize() *Tuple {
 	// TODO: some code goes here
 	td := a.GetTupleDesc()
-	var f DBValue
-	switch a.min.(type) {
-	case int64:
-		f = IntField{a.min.(int64)}
-	case string:
-		f = StringField{a.min.(string)}
-	}
-	fs := []DBValue{f}
-	t := Tuple{*td, fs, nil}
+	t := Tuple{*td, []DBValue{a.min}, nil}
 	return &t
 }
