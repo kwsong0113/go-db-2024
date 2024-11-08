@@ -1,0 +1,15 @@
+You must submit your code (see below) as well as a short (2 pages, maximum) writeup describing your approach. This writeup should:
+
+Describe any design decisions you made, including your choice of deadlock detection.
+
+Discuss and justify any changes you made to the API.
+
+Describe any missing or incomplete elements of your code.
+
+Describe how long you spent on the lab, and whether there was anything you found particularly difficult or confusing.
+
+1. Exercise 1: Acquiring transaction locks in BufferPool
+
+- I have implemented acquiring transaction locks in the `BufferPool` struct using `sync.Mutex`. As a data structure to track existing locks for each page, I used a map from pageKey to `PageLock`, which is a struct of `sharedTids` (set) and `exclusiveTid` (optional TransactionID), because a page can have multiple shared locks but at most one exclusive lock (also cannot have both shared and exclusive locks at the same time). Then, I added a logic at the beginning of `GetPage` that tries to acquire a lock for the page. This is done by repeating the following: first acquire the Mutex of the buffer pool, then check if the page lock can be acquired, then release the buffer pool Mutex, and break or block depending on whether the lock is acquired or not. One tricky part here was to consider the case where the transaction already has the lock for the page. In this case, depending on `RWPerm`, upgrade can happen, or the lock can be acquired immediately, or the transaction can be blocked.
+
+2. Exercise 2: Implementing the `BeginTransaction()`, `CommitTransaction()`, and `AbortTransaction()` methods in `BufferPool`

@@ -53,7 +53,7 @@ type heapPage struct {
 	desc   *TupleDesc
 	pageNo int
 	file   *HeapFile
-	dirty  bool
+	dirtyBy *TransactionID
 	tuples []*Tuple
 	
 }
@@ -69,7 +69,7 @@ func newHeapPage(desc *TupleDesc, pageNo int, f *HeapFile) (*heapPage, error) {
 		desc:   desc,
 		pageNo: pageNo,
 		file:   f,
-		dirty:  false,
+		dirtyBy: nil,
 	}
 	page.tuples = make([]*Tuple, page.getNumSlots())
 	return page, nil
@@ -105,6 +105,14 @@ func (h *heapPage) insertTuple(t *Tuple) (recordID, error) {
 	return "", GoDBError{code: PageFullError, errString: "no free slots on page"}
 }
 
+func (h *heapPage) insertTupleAndSetDirty(t *Tuple, tid TransactionID) (recordID, error) {
+	rid, err := h.insertTuple(t)
+	if err == nil {
+		h.setDirty(tid, true)
+	}
+	return rid, err
+}
+
 // return a record ID for at the specified slot number
 func (h *heapPage) slotNoToRid(slotNo int) recordID {
 	return rID{pageNo: h.pageNo, slotNo: slotNo}
@@ -128,20 +136,28 @@ func (h *heapPage) deleteTuple(rid recordID) error {
 		return GoDBError{code: TupleNotFoundError, errString: "tuple not found"}
 	}
 	h.tuples[slotNo] = nil
-	h.setDirty(0, true)
 	return nil
+}
+
+func (h *heapPage) deleteTupleAndSetDirty(rid recordID, tid TransactionID) error {
+	err := h.deleteTuple(rid)
+	return err
 }
 
 // Page method - return whether or not the page is dirty
 func (h *heapPage) isDirty() bool {
 	// TODO: some code goes here
-	return h.dirty
+	return h.dirtyBy != nil
 }
 
 // Page method - mark the page as dirty
 func (h *heapPage) setDirty(tid TransactionID, dirty bool) {
 	// TODO: some code goes here
-	h.dirty = dirty
+	if dirty {
+		h.dirtyBy = &tid
+	} else {
+		h.dirtyBy = nil
+	}
 }
 
 // Page method - return the corresponding HeapFile

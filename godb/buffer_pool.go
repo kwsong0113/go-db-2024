@@ -1,5 +1,10 @@
 package godb
 
+import (
+	"sync"
+	"time"
+)
+
 //BufferPool provides methods to cache pages that have been read from disk.
 //It has a fixed capacity to limit the total amount of memory used by GoDB.
 //It is also the primary way in which transactions are enforced, by using page
@@ -13,16 +18,26 @@ const (
 	WritePerm RWPerm = iota
 )
 
+type PageLock struct {
+	sharedTids map[TransactionID]bool
+	exclusiveTid *TransactionID
+}
+
 type BufferPool struct {
 	// TODO: some code goes here
+	runningTids map[TransactionID]bool
 	pages map[any]Page
+	pageLocks map[any]*PageLock
 	numPages int
+	mu sync.Mutex
 }
 
 // Create a new BufferPool with the specified number of pages
 func NewBufferPool(numPages int) (*BufferPool, error) {
 	return &BufferPool{
+		runningTids: make(map[TransactionID]bool),
 		pages: make(map[any]Page),
+		pageLocks: make(map[any]*PageLock),
 		numPages: numPages,
 	}, nil
 }
@@ -46,6 +61,18 @@ func (bp *BufferPool) FlushAllPages() {
 // release locks to abort. You do not need to implement this for lab 1.
 func (bp *BufferPool) AbortTransaction(tid TransactionID) {
 	// TODO: some code goes here
+	bp.mu.Lock()
+	defer bp.mu.Unlock()
+	// revert dirty pages associated with the transaction
+	for pageKey, page := range bp.pages {
+		if page.isDirty() && *page.(*heapPage).dirtyBy == tid {
+			delete(bp.pages, pageKey)
+		}
+	}
+	// release locks
+	bp.releaseLocks(tid)
+	// delete transaction from running transactions
+	delete(bp.runningTids, tid)
 }
 
 // Commit the transaction, releasing locks. Because GoDB is FORCE/NO STEAL, none
@@ -55,6 +82,29 @@ func (bp *BufferPool) AbortTransaction(tid TransactionID) {
 // WAL. You do not need to implement this for lab 1.
 func (bp *BufferPool) CommitTransaction(tid TransactionID) {
 	// TODO: some code goes here
+	bp.mu.Lock()
+	defer bp.mu.Unlock()
+	// flush dirty pages associated with the transaction
+	for _, page := range bp.pages {
+		if page.isDirty() && *page.(*heapPage).dirtyBy == tid {
+			page.getFile().flushPage(page)
+			page.setDirty(0, false)
+		}
+	}
+	// release locks
+	bp.releaseLocks(tid)
+	// delete transaction from running transactions
+	delete(bp.runningTids, tid)
+}
+
+func (bp *BufferPool) releaseLocks(tid TransactionID) {
+	for key, pageLock := range bp.pageLocks {
+		if pageLock.sharedTids[tid] {
+			delete(pageLock.sharedTids, tid)
+		} else if pageLock.exclusiveTid != nil && *pageLock.exclusiveTid == tid {
+			delete(bp.pageLocks, key)
+		}
+	}
 }
 
 // Begin a new transaction. You do not need to implement this for lab 1.
@@ -62,6 +112,15 @@ func (bp *BufferPool) CommitTransaction(tid TransactionID) {
 // Returns an error if the transaction is already running.
 func (bp *BufferPool) BeginTransaction(tid TransactionID) error {
 	// TODO: some code goes here
+	bp.mu.Lock()
+	defer bp.mu.Unlock()
+	if _, ok := bp.runningTids[tid]; ok {
+		return GoDBError{
+			code: IllegalTransactionError,
+			errString: "transaction is already running",
+		}
+	}
+	bp.runningTids[tid] = true
 	return nil
 }
 
@@ -78,6 +137,51 @@ func (bp *BufferPool) BeginTransaction(tid TransactionID) error {
 // of pages in the BufferPool in a map keyed by the [DBFile.pageKey].
 func (bp *BufferPool) GetPage(file DBFile, pageNo int, tid TransactionID, perm RWPerm) (Page, error) {
 	pageKey := file.pageKey(pageNo)
+	// acquire lock
+	for {
+		bp.mu.Lock()
+		if _, ok := bp.pageLocks[pageKey]; !ok {
+			bp.pageLocks[pageKey] = &PageLock{
+				sharedTids: make(map[TransactionID]bool),
+				exclusiveTid: nil,
+			}
+		}
+		pageLock := bp.pageLocks[pageKey]
+		acquired := false
+		// first check if the transaction already has the lock
+		if pageLock.sharedTids[tid] {
+			if perm == ReadPerm {
+				acquired = true
+			} else {
+				// upgrade to exclusive lock
+				if len(pageLock.sharedTids) == 1 {
+					delete(pageLock.sharedTids, tid)
+					pageLock.exclusiveTid = &tid
+					acquired = true
+				}
+			}
+		} else if pageLock.exclusiveTid != nil && *pageLock.exclusiveTid == tid {
+			acquired = true
+		} else if perm == ReadPerm {
+		// now check if the page can acquire a new lock
+			if pageLock.exclusiveTid == nil {
+				pageLock.sharedTids[tid] = true
+				acquired = true
+			}
+		} else {
+			if len(pageLock.sharedTids) == 0 && pageLock.exclusiveTid == nil {
+				pageLock.exclusiveTid = &tid
+				acquired = true
+			}
+		}
+		bp.mu.Unlock()
+		if acquired {
+			break // lock acquired, so proceed
+		} else {
+			time.Sleep(10 * time.Millisecond) // block
+		}
+	}
+
 	if page, ok := bp.pages[pageKey]; ok {
 		return page, nil
 	}

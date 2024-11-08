@@ -121,7 +121,8 @@ func (f *HeapFile) LoadFromCSV(file *os.File, hasHeader bool, sep string, skipLa
 
 		// Force dirty pages to disk. CommitTransaction may not be implemented
 		// yet if this is called in lab 1 or 2.
-		bp.FlushAllPages()
+		// bp.FlushAllPages()
+		bp.CommitTransaction(tid)
 
 	}
 	return nil
@@ -179,7 +180,7 @@ func (f *HeapFile) insertTuple(t *Tuple, tid TransactionID) error {
 		if err != nil {
 			return err
 		}
-		if _, err := page.(*heapPage).insertTuple(t); err != nil {
+		if _, err := page.(*heapPage).insertTupleAndSetDirty(t, tid); err != nil {
 			if err.(GoDBError).code == PageFullError {
 				continue
 			}
@@ -192,7 +193,7 @@ func (f *HeapFile) insertTuple(t *Tuple, tid TransactionID) error {
 	if err != nil {
 		return err
 	}
-	if _, err := page.insertTuple(t); err != nil {
+	if _, err := page.insertTupleAndSetDirty(t, tid); err != nil {
 		return err
 	}
 	if err := f.flushPage(page); err != nil {
@@ -217,7 +218,7 @@ func (f *HeapFile) deleteTuple(t *Tuple, tid TransactionID) error {
 	if err != nil {
 		return err
 	}
-	return page.(*heapPage).deleteTuple(t.Rid)
+	return page.(*heapPage).deleteTupleAndSetDirty(t.Rid, tid)
 }
 
 // Method to force the specified page back to the backing file at the
