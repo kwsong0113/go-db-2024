@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // A HeapFile is an unordered collection of tuples.
@@ -20,6 +21,7 @@ type HeapFile struct {
 	backingFile string
 	desc *TupleDesc
 	bufPool *BufferPool
+	mu sync.Mutex
 }
 
 // Create a HeapFile.
@@ -189,15 +191,21 @@ func (f *HeapFile) insertTuple(t *Tuple, tid TransactionID) error {
 			return nil
 		}
 	}
+	// prevent two transactions from inserting a new tuple that adds a new page to the HeapFile
+	f.mu.Lock()
+	numPages = f.NumPages()
 	page, err := newHeapPage(f.desc, numPages, f)
 
 	if err != nil {
+		f.mu.Unlock()
 		return err
 	}
 	// flush empty page
 	if err := f.flushPage(page); err != nil {
+		f.mu.Unlock()
 		return err
 	}
+	f.mu.Unlock()
 	// then reobtain the page from buffer pool & insert tuple
 	newPage, err := f.bufPool.GetPage(f, numPages, tid, WritePerm)
 	if err != nil {
