@@ -23,3 +23,12 @@ Describe how long you spent on the lab, and whether there was anything you found
 4. Exercise 4: Implementing NO STEAL
 - I have implemented random eviction policy for buffer pool, which evicts a random page from the buffer pool that is "not dirty". If there is no non-dirty page, it will raise `BufferPoolFullError`. This ensures that my code correctly implements NO STEAL policy. 
 
+5. Exercise 5: Implementing deadlock detection
+- I choose to implement deadlock detection by maintaining a wait-for graph, and aborting a transaction that causes a cycle in the graph. I track the dependency graph by adding a field `waitFor` to the `BufferPool`, which is a map from `TransactionID` to a set of `TransactionID`s that the transaction is waiting for. The detailed logic for avoiding deadlock is as follows:
+  - When a transaction tries to acquire a lock, in addition to checking if the lock can be acquired, I also create a set of transactions that the transaction is waiting for (if exists).
+  - Then, if the lock cannot be acquired, I call `detectDeadlock` function, which updates the wait-for graph and checks if there is a cycle in the graph by running DFS.
+  - If there is a cycle, I abort the current transaction so that other transactions can proceed.
+  - Also I made sure to properly release the Mutex lock before calling other functions.
+- There are both pros and cons of this deadlock detection method. The advantage is that it precisely detects the situation where a deadlock can occur based on the dependency graph, so will not abort transactions unnecessarily, and also resolves deadlocks immediately. Also, it is simple and straightforward compared to other methods that aim to gain more performance. The disadvantage is that the wait-for graph needs to be updated every time a transaction cannot acquire a lock, and DFS also needs to be run every time. This can be computationally expensive, especially when there are many transactions interleaved and the graph is large. Also, aborting the current transaction can lead to certain transactions being aborted again and again, due to their specific positions in the wait-for graph.
+
+  

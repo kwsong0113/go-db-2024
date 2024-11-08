@@ -29,6 +29,7 @@ type BufferPool struct {
 	pages map[any]Page
 	pageLocks map[any]*PageLock
 	numPages int
+	waitFor map[TransactionID]map[TransactionID]bool
 	mu sync.Mutex
 }
 
@@ -39,6 +40,7 @@ func NewBufferPool(numPages int) (*BufferPool, error) {
 		pages: make(map[any]Page),
 		pageLocks: make(map[any]*PageLock),
 		numPages: numPages,
+		waitFor: make(map[TransactionID]map[TransactionID]bool),
 	}, nil
 }
 
@@ -71,6 +73,8 @@ func (bp *BufferPool) AbortTransaction(tid TransactionID) {
 	}
 	// release locks
 	bp.releaseLocks(tid)
+	// clean up the wait-for graph
+	bp.clearWaitFor(tid)
 	// delete transaction from running transactions
 	delete(bp.runningTids, tid)
 }
@@ -93,10 +97,13 @@ func (bp *BufferPool) CommitTransaction(tid TransactionID) {
 	}
 	// release locks
 	bp.releaseLocks(tid)
+	// clean up the wait-for graph
+	bp.clearWaitFor(tid)
 	// delete transaction from running transactions
 	delete(bp.runningTids, tid)
 }
 
+// Release locks held by the transaction
 func (bp *BufferPool) releaseLocks(tid TransactionID) {
 	for key, pageLock := range bp.pageLocks {
 		if pageLock.sharedTids[tid] {
@@ -105,6 +112,14 @@ func (bp *BufferPool) releaseLocks(tid TransactionID) {
 			delete(bp.pageLocks, key)
 		}
 	}
+}
+
+// Clean up the wait-for graph for the transaction
+func (bp *BufferPool) clearWaitFor(tid TransactionID) {
+	for source := range bp.waitFor {
+		delete(bp.waitFor[source], tid)
+	}
+	delete(bp.waitFor, tid)
 }
 
 // Begin a new transaction. You do not need to implement this for lab 1.
@@ -122,6 +137,46 @@ func (bp *BufferPool) BeginTransaction(tid TransactionID) error {
 	}
 	bp.runningTids[tid] = true
 	return nil
+}
+
+// Update the wait-for graph and detect deadlocks.
+// Returns true if introducing new dependencies would create a deadlock.
+func (bp *BufferPool) detectDeadlock(source TransactionID, targets map[TransactionID]bool) bool {
+	bp.mu.Lock()
+	defer bp.mu.Unlock()
+	// update wait-for graph
+	bp.waitFor[source] = targets
+	// detect deadlock using DFS
+	visited := make(map[TransactionID]bool)
+	currentPath := make(map[TransactionID]bool)
+	// DFS function that returns true if a deadlock is detected
+	var dfs func(TransactionID) bool
+	dfs = func(tid TransactionID) bool {
+		if currentPath[tid] {
+			return true
+		}
+		if visited[tid] {
+			return false
+		}
+		visited[tid] = true
+		currentPath[tid] = true
+		for target := range bp.waitFor[tid] {
+			if dfs(target) {
+				return true
+			}
+		}
+		delete(currentPath, tid)
+		return false
+	}
+	// run DFS
+	for tid := range bp.waitFor {
+		if !visited[tid] {
+			if dfs(tid) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Retrieve the specified page from the specified DBFile (e.g., a HeapFile), on
@@ -148,6 +203,7 @@ func (bp *BufferPool) GetPage(file DBFile, pageNo int, tid TransactionID, perm R
 		}
 		pageLock := bp.pageLocks[pageKey]
 		acquired := false
+		waitForTargets := make(map[TransactionID]bool)
 		// first check if the transaction already has the lock
 		if pageLock.sharedTids[tid] {
 			if perm == ReadPerm {
@@ -158,6 +214,12 @@ func (bp *BufferPool) GetPage(file DBFile, pageNo int, tid TransactionID, perm R
 					delete(pageLock.sharedTids, tid)
 					pageLock.exclusiveTid = &tid
 					acquired = true
+				} else {
+					for t := range pageLock.sharedTids {
+						if t != tid {
+							waitForTargets[t] = true
+						}
+					}
 				}
 			}
 		} else if pageLock.exclusiveTid != nil && *pageLock.exclusiveTid == tid {
@@ -167,17 +229,35 @@ func (bp *BufferPool) GetPage(file DBFile, pageNo int, tid TransactionID, perm R
 			if pageLock.exclusiveTid == nil {
 				pageLock.sharedTids[tid] = true
 				acquired = true
+			} else {
+				waitForTargets[*pageLock.exclusiveTid] = true
 			}
 		} else {
 			if len(pageLock.sharedTids) == 0 && pageLock.exclusiveTid == nil {
 				pageLock.exclusiveTid = &tid
 				acquired = true
+			} else {
+				for t := range pageLock.sharedTids {
+					waitForTargets[t] = true
+				}
+				if pageLock.exclusiveTid != nil {
+					waitForTargets[*pageLock.exclusiveTid] = true
+				}
 			}
 		}
 		bp.mu.Unlock()
 		if acquired {
 			break // lock acquired, so proceed
 		} else {
+			// deadlock detection
+			if bp.detectDeadlock(tid, waitForTargets) {
+				// abort the transaction
+				bp.AbortTransaction(tid)
+				return nil, GoDBError{
+					code: DeadlockError,
+					errString: "deadlock detected",
+				}
+			}
 			time.Sleep(10 * time.Millisecond) // block
 		}
 	}
