@@ -1,13 +1,3 @@
-You must submit your code (see below) as well as a short (2 pages, maximum) writeup describing your approach. This writeup should:
-
-Describe any design decisions you made, including your choice of deadlock detection.
-
-Discuss and justify any changes you made to the API.
-
-Describe any missing or incomplete elements of your code.
-
-Describe how long you spent on the lab, and whether there was anything you found particularly difficult or confusing.
-
 1. Exercise 1: Acquiring transaction locks in BufferPool
 
 - I have implemented acquiring transaction locks in the `BufferPool` struct using `sync.Mutex`. As a data structure to track existing locks for each page, I used a map from pageKey to `PageLock`, which is a struct of `sharedTids` (set) and `exclusiveTid` (optional TransactionID), because a page can have multiple shared locks but at most one exclusive lock (also cannot have both shared and exclusive locks at the same time). Then, I added a logic at the beginning of `GetPage` that tries to acquire a lock for the page. This is done by repeating the following: first acquire the Mutex of the buffer pool, then check if the page lock can be acquired, then release the buffer pool Mutex, and break or block depending on whether the lock is acquired or not. One tricky part here was to consider the case where the transaction already has the lock for the page. In this case, depending on `RWPerm`, upgrade can happen, or the lock can be acquired immediately, or the transaction can be blocked.
@@ -31,4 +21,5 @@ Describe how long you spent on the lab, and whether there was anything you found
   - Also I made sure to properly release the Mutex lock before calling other functions.
 - There are both pros and cons of this deadlock detection method. The advantage is that it precisely detects the situation where a deadlock can occur based on the dependency graph, so will not abort transactions unnecessarily, and also resolves deadlocks immediately. Also, it is simple and straightforward compared to other methods that aim to gain more performance. The disadvantage is that the wait-for graph needs to be updated every time a transaction cannot acquire a lock, and DFS also needs to be run every time. This can be computationally expensive, especially when there are many transactions interleaved and the graph is large. Also, aborting the current transaction can lead to certain transactions being aborted again and again, due to their specific positions in the wait-for graph.
 
-  
+
+6. Overall, I've spent about 6 hours on this assignment. I particularly spent more time on the early exercises as I had to fix slight but important bugs in the codes I wrote in the previous labs. The most confusing part in this lab was understanding the whole logic behind transaction management, as it requires a big-picture understanding of this codebase. However, I believe the instructions were in general very detailed (could be better if it emphasizes how previous labs should be fixed), and particularly enjoyed using DFS for deadlock detection!
