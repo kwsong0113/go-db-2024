@@ -20,3 +20,6 @@ Describe how long you spent on the lab, and whether there was anything you found
 3. Exercise 3: Adding synchronization
 - I added a `Mutex mu` to the `HeapFile` struct, and locked & unlocked it before and after creating and flushing a new page in `InsertTuple` method (when all pages are full). This is to prevent a race condition where multiple transactions try to create a new page at the same time and overwrite each other's changes.
 
+4. Exercise 4: Implementing NO STEAL
+- I have implemented random eviction policy for buffer pool, which evicts a random page from the buffer pool that is "not dirty". If there is no non-dirty page, it will raise `BufferPoolFullError`. This ensures that my code correctly implements NO STEAL policy. 
+
