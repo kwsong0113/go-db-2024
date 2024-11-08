@@ -262,6 +262,8 @@ func (bp *BufferPool) GetPage(file DBFile, pageNo int, tid TransactionID, perm R
 		}
 	}
 
+	bp.mu.Lock()
+	defer bp.mu.Unlock()
 	if page, ok := bp.pages[pageKey]; ok {
 		return page, nil
 	}
