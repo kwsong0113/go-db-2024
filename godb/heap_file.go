@@ -190,13 +190,20 @@ func (f *HeapFile) insertTuple(t *Tuple, tid TransactionID) error {
 		}
 	}
 	page, err := newHeapPage(f.desc, numPages, f)
+
 	if err != nil {
 		return err
 	}
-	if _, err := page.insertTupleAndSetDirty(t, tid); err != nil {
+	// flush empty page
+	if err := f.flushPage(page); err != nil {
 		return err
 	}
-	if err := f.flushPage(page); err != nil {
+	// then reobtain the page from buffer pool & insert tuple
+	newPage, err := f.bufPool.GetPage(f, numPages, tid, WritePerm)
+	if err != nil {
+		return err
+	}
+	if _, err := newPage.(*heapPage).insertTupleAndSetDirty(t, tid); err != nil {
 		return err
 	}
 	return nil

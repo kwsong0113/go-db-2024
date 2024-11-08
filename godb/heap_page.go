@@ -98,7 +98,6 @@ func (h *heapPage) insertTuple(t *Tuple) (recordID, error) {
 		if tuple == nil {
 			t.Rid = h.slotNoToRid(slotNo)
 			h.tuples[slotNo] = t
-			h.setDirty(0, true)
 			return t.Rid, nil
 		}
 	}
