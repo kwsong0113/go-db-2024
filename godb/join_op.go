@@ -46,9 +46,11 @@ func (hj *EqualityJoin) Descriptor() *TupleDesc {
 // maxBufferSize records, and should pass the testBigJoin test without timing
 // out. To pass this test, you will need to use something other than a nested
 // loops join.
-func (joinOp *EqualityJoin) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
+func (joinOp *EqualityJoin) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) {
 	// TODO: some code goes here
 	// -----------------------Simple Nested Loop Join-----------------------
+	// NOTE: Simple Nested Loop Join here is outdated,
+	// only works for previous "tuple-at-a-time" Iterator
 	// leftIter, err := (*joinOp.left).Iterator(tid)
 	// if err != nil {
 	// 	return nil, err
@@ -105,24 +107,33 @@ func (joinOp *EqualityJoin) Iterator(tid TransactionID) (func() (*Tuple, error),
 		return nil, err
 	}
 
+	var cachedBatch []*Tuple // batch of right tuples to be included in the next hash table
+
 	// utility function to build block hash table that does not exceed maxBufferSize
 	buildHashTable := func() (map[DBValue][]*Tuple, error) {
 		hashTable := make(map[DBValue][]*Tuple)
 		count := 0
-		for {
-			t, err := rightIter()
+		checkedCachedBatch := false
+		for batch, err := cachedBatch, error(nil); !checkedCachedBatch || len(batch) > 0 || err != nil; batch, err = rightIter() {
+			if !checkedCachedBatch {
+				checkedCachedBatch = true
+				cachedBatch = nil
+			}
 			if err != nil {
 				return nil, err
 			}
-			if t == nil {
-				break
+			for _, t := range batch {
+				key, err := joinOp.rightField.EvalExpr(t)
+				if err != nil {
+					return nil, err
+				}
+				if count < joinOp.maxBufferSize {
+					hashTable[key] = append(hashTable[key], t)
+				} else {
+					cachedBatch = append(cachedBatch, t)
+				}
+				count++
 			}
-			key, err := joinOp.rightField.EvalExpr(t)
-			if err != nil {
-				return nil, err
-			}
-			hashTable[key] = append(hashTable[key], t)
-			count++
 			if count >= joinOp.maxBufferSize {
 				break
 			}
@@ -132,23 +143,13 @@ func (joinOp *EqualityJoin) Iterator(tid TransactionID) (func() (*Tuple, error),
 
 	var hashTable map[DBValue][]*Tuple
 
-	getHashTableIterator := func(val DBValue) func() (*Tuple, error) {
-		tuples := hashTable[val]
-		idx := 0
-		return func() (*Tuple, error) {
-			if idx >= len(tuples) {
-				return nil, nil
-			}
-			t := tuples[idx]
-			idx++
-			return t, nil
-		}
-	}
+	var left []*Tuple
+	var right []*Tuple
+	var leftIdx int
+	var rightIdx int
 
-	var left *Tuple
-	var hashIter func() (*Tuple, error) 
-
-	return func() (*Tuple, error) {
+	return func() ([]*Tuple, error) {
+		var batch []*Tuple
 		for {
 			if hashTable == nil {
 				hashTable, err = buildHashTable()
@@ -157,14 +158,15 @@ func (joinOp *EqualityJoin) Iterator(tid TransactionID) (func() (*Tuple, error),
 				}
 			}
 			if len(hashTable) == 0 {
-				return nil, nil
+				break
 			}
-			if left == nil {
+			if len(left) == 0 {
 				left, err = leftIter()
+				leftIdx = 0
 				if err != nil {
 					return nil, err
 				}
-				if left == nil {
+				if len(left) == 0 {
 					leftIter, err = (*joinOp.left).Iterator(tid)
 					if err != nil {
 						return nil, err
@@ -173,23 +175,29 @@ func (joinOp *EqualityJoin) Iterator(tid TransactionID) (func() (*Tuple, error),
 					continue
 				}
 			}
-			if hashIter == nil {
-				leftVal, err := joinOp.leftField.EvalExpr(left)
-				if err != nil {
-					return nil, err
+			for leftIdx < len(left) {
+				leftTup := left[leftIdx]
+				if len(right) == 0 {
+					leftVal, err := joinOp.leftField.EvalExpr(leftTup)
+					if err != nil {
+						return nil, err
+					}
+					right = hashTable[leftVal]
+					rightIdx = 0
 				}
-				hashIter = getHashTableIterator(leftVal)
+				for rightIdx < len(right) {
+					rightTup := right[rightIdx]
+					rightIdx++
+					batch = append(batch, joinTuples(leftTup, rightTup))
+					if len(batch) == BatchSize {
+						return batch, nil
+					}
+				}
+				leftIdx++
+				right = nil
 			}
-			right, err := hashIter()
-			if err != nil {
-				return nil, err
-			}
-			if right == nil {
-				left = nil
-				hashIter = nil
-				continue
-			}
-			return joinTuples(left, right), nil
+			left = nil
 		}
+		return batch, nil
 	}, nil
 }

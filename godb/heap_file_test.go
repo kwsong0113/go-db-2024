@@ -44,15 +44,15 @@ func TestHeapFileCreateAndInsert(t *testing.T) {
 
 	i := 0
 	for {
-		tup, err := iter()
+		batch, err := iter()
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
 
-		if tup == nil {
+		if len(batch) == 0 {
 			break
 		}
-		i = i + 1
+		i = i + len(batch)
 	}
 	if i != 2 {
 		t.Fatalf("HeapFile iterator expected 2 tuples, got %d", i)
@@ -80,13 +80,15 @@ func TestHeapFileDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-
-	t3, err := iter()
-	if err != nil {
-		t.Fatalf(err.Error())
+	var out []*Tuple
+	for batch, err := iter(); len(batch) > 0 || err != nil; batch, err = iter() {
+		if err != nil {
+			t.Fatalf(err.Error())
+		}
+		out = append(out, batch...)
 	}
-	if t3 == nil {
-		t.Fatalf("HeapFile iterator expected 1 tuple")
+	if len(out) != 1 {
+		t.Fatalf("HeapFile iterator expected 1 tuple, got %d", len(out))
 	}
 
 	err = hf.deleteTuple(&t2, tid)
@@ -99,12 +101,11 @@ func TestHeapFileDelete(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	t3, err = iter()
+	batch, err := iter()
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-
-	if t3 != nil {
+	if len(batch) != 0 {
 		t.Fatalf("HeapFile iterator expected 0 tuple")
 	}
 }
@@ -145,11 +146,11 @@ func testSerializeN(t *testing.T, n int) {
 	}
 
 	i := 0
-	for tup, err := iter(); tup != nil; tup, err = iter() {
+	for batch, err := iter(); len(batch) > 0 || err != nil; batch, err = iter() {
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
-		i = i + 1
+		i = i + len(batch)
 	}
 	if i != 2*n {
 		t.Fatalf("HeapFile iterator expected %d tuples, got %d", 2*n, i)
@@ -182,11 +183,11 @@ func TestHeapFileLoadCSV(t *testing.T) {
 	iter, _ := hf.Iterator(tid)
 	i := 0
 	for {
-		t, _ := iter()
-		if t == nil {
+		batch, _ := iter()
+		if len(batch) == 0 {
 			break
 		}
-		i = i + 1
+		i = i + len(batch)
 	}
 	if i != 384 {
 		t.Fatalf("HeapFile iterator expected 384 tuples, got %d", i)
@@ -300,18 +301,14 @@ func TestHeapFileIteratorExtra(t *testing.T) {
 	}
 	hf.insertTuple(&t1, tid)
 	it, err = hf.Iterator(tid)
-	pg, err := it()
-	if err != nil {
-		t.Fatalf("Iterating over heap file with one tuple returned error %s", err.Error())
+	var out []*Tuple
+	for batch, err := it(); len(batch) > 0 || err != nil; batch, err = it() {
+		if err != nil {
+			t.Fatalf("Iterating over heap file returned error %s", err.Error())
+		}
+		out = append(out, batch...)
 	}
-	if pg == nil {
-		t.Fatalf("Should have gotten 1 page in heap file iterator")
-	}
-	pg, err = it()
-	if pg != nil {
-		t.Fatalf("More than 1 page in heap file iterator!")
-	}
-	if err != nil {
-		t.Fatalf("Iterator returned error at end, expected nil, nil, got nil, %s", err.Error())
+	if len(out) != 1 {
+		t.Fatalf("HeapFile iterator expected 1 page, got %d", len(out))
 	}
 }

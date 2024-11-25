@@ -62,11 +62,11 @@ func TestSimpleQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get iterator, %s", err.Error())
 	}
-	tup, err := f()
+	batch, err := f()
 	if err != nil {
 		t.Fatalf("failed to get tuple, %s", err.Error())
 	}
-	cnt2 := tup.Fields[0].(IntField).Value
+	cnt2 := batch[0].Fields[0].(IntField).Value
 	if cnt2 != 10 {
 		t.Fatalf("expected 10 results, got %d", cnt2)
 	}

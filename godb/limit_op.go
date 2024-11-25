@@ -22,29 +22,40 @@ func (l *LimitOp) Descriptor() *TupleDesc {
 // Limit operator implementation. This function should iterate over the results
 // of the child iterator, and limit the result set to the first [lim] tuples it
 // sees (where lim is specified in the constructor).
-func (l *LimitOp) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
+func (l *LimitOp) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) {
 	// TODO: some code goes here
 	childIter, err := l.child.Iterator(tid)
 	if err != nil {
 		return nil, err
 	}
-	count := int64(0)
-	return func() (*Tuple, error) {
-		tup, err := childIter()
-		if err != nil {
-			return nil, err
-		}
-		if tup == nil {
+	count := 0
+	var limit int
+	hasLimit := false
+	return func() ([]*Tuple, error) {
+		if hasLimit && count >= limit {
 			return nil, nil
 		}
-		lim, err := l.limitTups.EvalExpr(tup)
+
+		// here it's assumed that childIter correctly returns the batch capped at BatchSize
+		batch, err := childIter()
 		if err != nil {
 			return nil, err
 		}
-		if count < lim.(IntField).Value {
-			count++
-			return tup, nil
+		if len(batch) == 0 {
+			return nil, nil
 		}
-		return nil, nil
+		if !hasLimit {
+			limitTup, err := l.limitTups.EvalExpr(batch[0])
+			if err != nil {
+				return nil, err
+			}
+			limit = int(limitTup.(IntField).Value)
+			hasLimit = true
+		}
+		if limit - count < len(batch) {
+			batch = batch[:limit - count]
+		}
+		count += len(batch)
+		return batch, nil		
 	}, nil
 }

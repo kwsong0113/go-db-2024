@@ -63,7 +63,7 @@ type DBFile interface {
 
 type Operator interface {
 	Descriptor() *TupleDesc
-	Iterator(tid TransactionID) (func() (*Tuple, error), error)
+	Iterator(tid TransactionID) (func() ([]*Tuple, error), error)
 }
 
 type BoolOp int

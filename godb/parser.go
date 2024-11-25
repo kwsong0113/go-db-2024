@@ -847,7 +847,7 @@ func (o *OperatorCard) Descriptor() *TupleDesc {
 	return o.Op.Descriptor()
 }
 
-func (o *OperatorCard) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
+func (o *OperatorCard) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) {
 	return o.Op.Iterator(tid)
 }
 

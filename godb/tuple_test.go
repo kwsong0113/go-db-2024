@@ -6,51 +6,45 @@ import (
 	"testing"
 )
 
-func CheckIfOutputMatches(f func() (*Tuple, error), ts []*Tuple) error {
-	n := 0
+func CheckIfOutputMatches(f func() ([]*Tuple, error), ts []*Tuple) error {
+	outputs := make([]*Tuple, 0)
 	for {
-		t1, err := f()
+		batch, err := f()
 		if err != nil {
 			return err
 		}
-		if t1 == nil {
+		if len(batch) == 0 {
 			break
 		}
-
-		if n >= len(ts) {
-			return fmt.Errorf("too many tuples returned. expected %d", len(ts))
-		}
-
-		t2 := ts[n]
-		if !t1.equals(t2) {
-			return fmt.Errorf("tuple %d did not match expected tuple. expected %v, got %v", n, t2, t1)
-		}
-		n++
+		outputs = append(outputs, batch...)
 	}
-	if n < len(ts) {
-		return fmt.Errorf("too few tuples returned. expected %d, got %d", len(ts), n)
+	if len(outputs) != len(ts) {
+		return fmt.Errorf("expected %d tuples, got %d", len(ts), len(outputs))
+	}
+	for i, t1 := range outputs {
+		t2 := ts[i]
+		if !t1.equals(t2) {
+			return fmt.Errorf("tuple %d did not match expected tuple. expected %v, got %v", i, t2, t1)
+		}
 	}
 	return nil
 }
 
-func CheckIfOutputMatchesUnordered(f func() (*Tuple, error), ts []*Tuple) error {
+func CheckIfOutputMatchesUnordered(f func() ([]*Tuple, error), ts []*Tuple) error {
 	n := len(ts)
 	found := make([]bool, n)
 
-	i := 0
-	for {
-		t1, err := f()
+	var output []*Tuple
+	for batch, err := f(); len(batch) > 0 || err != nil; batch, err = f() {
 		if err != nil {
 			return err
 		}
-		if t1 == nil {
-			break
-		}
-
-		if i >= n {
-			return fmt.Errorf("too many tuples returned. expected %d", n)
-		}
-
+		output = append(output, batch...)
+	}
+	if len(output) != n {
+		return fmt.Errorf("expected %d tuples, got %d", n, len(output))
+	}
+	for _, t1 := range output {
 		found_this := false
 		for j, t2 := range ts {
 			if !found[j] && t1.equals(t2) {
@@ -63,10 +57,6 @@ func CheckIfOutputMatchesUnordered(f func() (*Tuple, error), ts []*Tuple) error 
 		if !found_this {
 			return fmt.Errorf("received unexpected tuple %v", t1)
 		}
-		i++
-	}
-	if i < n {
-		return fmt.Errorf("too few tuples returned. expected %d, got %d", n, i)
 	}
 	for j, f := range found {
 		if !f {

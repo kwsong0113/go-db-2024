@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -32,6 +33,8 @@ func printCatalog(c *godb.Catalog) {
 }
 
 func main() {
+	flag.Parse()
+	fmt.Printf("Iterator Batch Size: ", godb.BatchSize)
 	alarm := make(chan int, 1)
 
 	go func() {
@@ -248,17 +251,18 @@ func main() {
 			fmt.Printf("\033[32;4m%s\033[0m\n", plan.Descriptor().HeaderString(aligned))
 
 			for {
-				tup, err := iter()
+				batch, err := iter()
 				if err != nil {
 					fmt.Printf("%s\n", err.Error())
 					break
 				}
-				if tup == nil {
+				if len(batch) == 0 {
 					break
-				} else {
-					fmt.Printf("\033[32m%s\033[0m\n", tup.PrettyPrintString(aligned))
 				}
-				nresults++
+				for _, tup := range batch {
+					fmt.Printf("\033[32m%s\033[0m\n", tup.PrettyPrintString(aligned))
+					nresults++
+				}
 				select {
 				case <-alarm:
 					fmt.Println("Aborting")

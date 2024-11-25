@@ -226,19 +226,18 @@ func (h *heapPage) initFromBuffer(buf *bytes.Buffer) error {
 
 // Return a function that iterates through the tuples of the heap page.  Be sure
 // to set the rid of the tuple to the rid struct of your choosing beforing
-// return it. Return nil, nil when the last tuple is reached.
-func (p *heapPage) tupleIter() func() (*Tuple, error) {
-	// TODO: some code goes here
+// return it. Return an empty slice or nil if there are no tuples.
+func (p *heapPage) tupleIter() func() ([]*Tuple, error) {
 	slotNo := 0
-	return func() (*Tuple, error) {
-		for slotNo < len(p.tuples) && p.tuples[slotNo] == nil {
+	return func() ([]*Tuple, error) {
+		var batch []*Tuple
+		for len(batch) < BatchSize && slotNo < len(p.tuples) {
+			if p.tuples[slotNo] != nil {
+				batch = append(batch, p.tuples[slotNo])
+			}
 			slotNo++
 		}
-		if slotNo >= len(p.tuples) {
-			return nil, nil
-		}
-		tuple := p.tuples[slotNo]
-		slotNo++
-		return tuple, nil
+
+		return batch, nil
 	}
 }

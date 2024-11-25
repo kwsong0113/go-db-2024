@@ -100,7 +100,7 @@ func (o *OrderBy) sort(tuples []*Tuple) {
 // the sort algorithm will invoke to produce a sorted list. See the first
 // example, example of SortMultiKeys, and documentation at:
 // https://pkg.go.dev/sort
-func (o *OrderBy) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
+func (o *OrderBy) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) {
 	// TODO: some code goes here
 	childIter, err := o.child.Iterator(tid)
 	if err != nil {
@@ -109,26 +109,26 @@ func (o *OrderBy) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
 	var tuples []*Tuple
 	idx := 0
 
-	return func() (*Tuple, error) {
+	return func() ([]*Tuple, error) {
 		if tuples == nil {
 			tuples = make([]*Tuple, 0)
 			for {
-				t, err := childIter()
+				batch, err := childIter()
 				if err != nil {
 					return nil, err
 				}
-				if t == nil {
+				if len(batch) == 0 {
 					break
 				}
-				tuples = append(tuples, t)
+				tuples = append(tuples, batch...)
 			}
 			o.sort(tuples)
 		}
 		if idx >= len(tuples) {
 			return nil, nil
 		}
-		t := tuples[idx]
-		idx++
-		return t, nil
+		currBatchSize := min(BatchSize, len(tuples) - idx)
+		idx += currBatchSize
+		return tuples[idx - currBatchSize : idx], nil
 	}, nil
 }

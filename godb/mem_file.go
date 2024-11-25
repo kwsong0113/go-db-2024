@@ -64,22 +64,23 @@ func (mf *MemFile) Descriptor() *TupleDesc {
 	return mf.desc
 }
 
-func (mf *MemFile) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
+func (mf *MemFile) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) {
 	i := 0
-	return func() (*Tuple, error) {
-		for {
-			if i >= len(mf.pages) {
-				return nil, nil
-			}
+	return func() ([]*Tuple, error) {
+		batch := make([]*Tuple, 0)
+		for i < len(mf.pages) {
 			page := mf.pages[i]
 			if page == nil {
 				i++
 				continue
 			}
-
+			batch = append(batch, &page.tuple)
 			i++
-			return &page.tuple, nil
+			if len(batch) == BatchSize {
+				break
+			}
 		}
+		return batch, nil
 	}, nil
 }
 

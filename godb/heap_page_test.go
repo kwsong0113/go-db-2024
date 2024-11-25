@@ -104,13 +104,14 @@ func TestHeapPageInsertTuple(t *testing.T) {
 		cnt, found := 0, false
 		for {
 
-			tup, _ := iter()
-			found = found || addition.equals(tup)
-			if tup == nil {
+			batch, _ := iter()
+			if len(batch) == 0 {
 				break
 			}
-
-			cnt += 1
+			for _, tup := range batch {
+				found = found || addition.equals(tup)
+			}
+			cnt += len(batch)
 		}
 		if cnt != i+1 {
 			t.Errorf("Expected %d tuple in interator, got %d", i+1, cnt)
@@ -231,23 +232,27 @@ func TestHeapPageSerialization(t *testing.T) {
 		t.Fatalf("iter2 was nil.")
 	}
 
-	findEqCount := func(t0 *Tuple, iter3 func() (*Tuple, error)) int {
+	findEqCount := func(t0 *Tuple, iter3 func() ([]*Tuple, error)) int {
 		cnt := 0
-		for tup, _ := iter3(); tup != nil; tup, _ = iter3() {
-			if t0.equals(tup) {
-				cnt += 1
+		for batch, _ := iter3(); len(batch) > 0; batch, _ = iter3() {
+			for _, tup := range batch {
+				if t0.equals(tup) {
+					cnt += 1
+				}
 			}
 		}
 		return cnt
 	}
 
 	for {
-		tup, _ := iter()
-		if tup == nil {
+		batch, _ := iter()
+		if len(batch) == 0 {
 			break
 		}
-		if findEqCount(tup, page.tupleIter()) != findEqCount(tup, page2.tupleIter()) {
-			t.Errorf("Serialization / deserialization doesn't result in identical heap page.")
+		for _, tup := range batch {
+			if findEqCount(tup, page.tupleIter()) != findEqCount(tup, page2.tupleIter()) {
+				t.Errorf("Serialization / deserialization doesn't result in identical heap page.")
+			}
 		}
 	}
 }
