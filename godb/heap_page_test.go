@@ -33,15 +33,15 @@ func TestHeapPageInsert(t *testing.T) {
 
 	cnt := 0
 	for {
-		tup, err := iter()
+		batch, err := iter()
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
-		if tup == nil {
+		if len(batch) == 0 {
 			break
 		}
 
-		cnt += 1
+		cnt += len(batch)
 	}
 	if cnt != 2 {
 		t.Errorf("Expected 2 tuples in interator, got %d", cnt)
