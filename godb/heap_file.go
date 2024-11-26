@@ -299,6 +299,7 @@ func (f *HeapFile) Iterator(tid TransactionID) (func() ([]*Tuple, error), error)
 	}
 	
 	return func() ([]*Tuple, error) {
+		var returnBatch []*Tuple
 		for iter != nil {
 			batch, err := iter()
 			if err != nil {
@@ -313,16 +314,18 @@ func (f *HeapFile) Iterator(tid TransactionID) (func() ([]*Tuple, error), error)
 			}
 			currBatch = append(currBatch, batch...)
 			if len(currBatch) >= BatchSize {
-				batch := currBatch[:BatchSize]
+				returnBatch = currBatch[:BatchSize]
 				currBatch = currBatch[BatchSize:]
-				for _, t := range batch {
-					t.Desc = *f.desc
-				}
-				return batch, nil
+				break
 			}
 		}
-		returnBatch := currBatch
-		currBatch = nil
+		if len(returnBatch) == 0 {
+			returnBatch = currBatch
+			currBatch = nil
+		}
+		for _, t := range returnBatch {
+			t.Desc = *f.desc
+		}
 		return returnBatch, nil
 	}, nil
 }
