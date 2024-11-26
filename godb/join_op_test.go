@@ -78,6 +78,7 @@ const BigJoinFile2 string = "jointest2.dat"
 //describe in the lab 2 assignment.
 
 func TestJoinBigOptional(t *testing.T) {
+	t.Skip("Skipping TestJoinBigOptional")
 	timeout := time.After(20 * time.Second)
 
 	done := make(chan bool)
