@@ -26,7 +26,7 @@ func printTime(name string, f func()) {
 	fmt.Printf("%s: %.3fms\n", name, float64(time.Since(start).Seconds())*1000)
 }
 
-func TestFilterBenchmark(t *testing.T) {
+func TestFilterUnitBenchmark(t *testing.T) {
 	_, hf1, _, _, tid := makeBigTableAndVars(t, TableSize, true)
 	filter, err := NewFilter(
 		&ConstExpr{IntField{int64(TableSize / 2)}, IntType},
@@ -49,7 +49,7 @@ func TestFilterBenchmark(t *testing.T) {
 	})
 }
 
-func TestOrderByBenchmark(t *testing.T) {
+func TestOrderByUnitBenchmark(t *testing.T) {
 	_, hf1, _, _, tid := makeBigTableAndVars(t, TableSize, true)
 	orderBy, err := NewOrderBy(
 		[]Expr{&FieldExpr{FieldType{"age", "", IntType}}},
@@ -71,7 +71,7 @@ func TestOrderByBenchmark(t *testing.T) {
 	})
 }
 
-func TestLimitBenchmark(t *testing.T) {
+func TestLimitUnitBenchmark(t *testing.T) {
 	_, hf1, _, _, tid := makeBigTableAndVars(t, TableSize, true)
 	limit := NewLimitOp(&ConstExpr{IntField{int64(TableSize / 2)}, IntType}, hf1)
 	printTime("Limit", func() {
@@ -86,7 +86,7 @@ func TestLimitBenchmark(t *testing.T) {
 	})
 }
 
-func TestProjectBenchmark(t *testing.T) {
+func TestProjectUnitBenchmark(t *testing.T) {
 	_, hf1, _, _, tid := makeBigTableAndVars(t, TableSize, true)
 	var outNames = []string{"name"}
 	exprs := []Expr{&FieldExpr{FieldType{"name", "", StringType}}}
@@ -106,7 +106,7 @@ func TestProjectBenchmark(t *testing.T) {
 	})
 }
 
-func TestJoinBenchmark(t *testing.T) {
+func TestJoinUnitBenchmark(t *testing.T) {
 	td, hf1, hf2, _, tid := makeBigTableAndVars(t, TableSize, false)
 	leftField := FieldExpr{td.Fields[1]}
 	join, err := NewJoin(hf1, &leftField, hf2, &leftField, TableSize)
@@ -125,7 +125,7 @@ func TestJoinBenchmark(t *testing.T) {
 	})
 }
 
-func TestAggBenchmark(t *testing.T) {
+func TestAggUnitBenchmark(t *testing.T) {
 	_, hf1, _, _, tid := makeBigTableAndVars(t, TableSize, true)
 	// sum aggregation
 	sa := SumAggState{}
