@@ -22,6 +22,7 @@ const (
 	IllegalOperationError   GoDBErrorCode = iota
 	DeadlockError           GoDBErrorCode = iota
 	IllegalTransactionError GoDBErrorCode = iota
+	BatchSizeExceededError  GoDBErrorCode = iota
 )
 
 //go:generate stringer -type=GoDBErrorCode

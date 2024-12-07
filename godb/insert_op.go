@@ -32,7 +32,7 @@ func (iop *InsertOp) Iterator(tid TransactionID) (func() ([]*Tuple, error), erro
 		return nil, err
 	}
 	done := false
-	return func() ([]*Tuple, error) {
+	return validate(func() ([]*Tuple, error) {
 		if done {
 			return nil, nil
 		}
@@ -55,5 +55,5 @@ func (iop *InsertOp) Iterator(tid TransactionID) (func() ([]*Tuple, error), erro
 		}
 		done = true
 		return []*Tuple{{*iop.Descriptor(), []DBValue{IntField{Value: count}}, nil}}, nil
-	}, nil
+	}), nil
 }

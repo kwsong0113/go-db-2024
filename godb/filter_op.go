@@ -29,7 +29,7 @@ func (f *Filter) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) {
 		return nil, err
 	}
 	var currBatch []*Tuple
-	return func() ([]*Tuple, error) {
+	return validate(func() ([]*Tuple, error) {
 		for iter != nil {
 			batch, err := iter()
 			if err != nil {
@@ -59,5 +59,5 @@ func (f *Filter) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) {
 			}
 		}
 		return nil, nil
-	}, nil
+	}), nil
 }

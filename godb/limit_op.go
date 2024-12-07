@@ -31,7 +31,7 @@ func (l *LimitOp) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) 
 	count := 0
 	var limit int
 	hasLimit := false
-	return func() ([]*Tuple, error) {
+	return validate(func() ([]*Tuple, error) {
 		if hasLimit && count >= limit {
 			return nil, nil
 		}
@@ -57,5 +57,5 @@ func (l *LimitOp) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) 
 		}
 		count += len(batch)
 		return batch, nil		
-	}, nil
+	}), nil
 }

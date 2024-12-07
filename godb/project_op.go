@@ -55,7 +55,7 @@ func (p *Project) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) 
 		ftsToProject[i] = expr.GetExprType()
 	}
 	cachedBatch := make([]*Tuple, 0)
-	return func() ([]*Tuple, error) {
+	return validate(func() ([]*Tuple, error) {
 		currentBatch := make([]*Tuple, 0)
 		checkedCachedBatch := false
 		for batch, err := cachedBatch, error(nil); !checkedCachedBatch || len(batch) > 0 || err != nil; batch, err = childIter() {
@@ -97,5 +97,5 @@ func (p *Project) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) 
 		}
 		cachedBatch = nil
 		return currentBatch, nil
-	}, nil
+	}), nil
 }

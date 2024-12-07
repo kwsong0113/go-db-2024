@@ -66,7 +66,7 @@ func (mf *MemFile) Descriptor() *TupleDesc {
 
 func (mf *MemFile) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) {
 	i := 0
-	return func() ([]*Tuple, error) {
+	return validate(func() ([]*Tuple, error) {
 		batch := make([]*Tuple, 0)
 		for i < len(mf.pages) {
 			page := mf.pages[i]
@@ -81,7 +81,7 @@ func (mf *MemFile) Iterator(tid TransactionID) (func() ([]*Tuple, error), error)
 			}
 		}
 		return batch, nil
-	}, nil
+	}), nil
 }
 
 func CreateMemFileFromTuples(tuples []Tuple) *MemFile {

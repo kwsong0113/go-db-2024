@@ -28,7 +28,7 @@ func (v *ValueOp) Descriptor() *TupleDesc {
 
 func (v *ValueOp) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) {
 	curTup := 0
-	return func() ([]*Tuple, error) {
+	return validate(func() ([]*Tuple, error) {
 		batch := make([]*Tuple, 0)
 		for curTup < len(v.exprs) {
 			tup := v.exprs[curTup]
@@ -48,5 +48,5 @@ func (v *ValueOp) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) 
 			}
 		}
 		return batch, nil
-	}, nil
+	}), nil
 }

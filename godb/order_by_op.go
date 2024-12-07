@@ -109,7 +109,7 @@ func (o *OrderBy) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) 
 	var tuples []*Tuple
 	idx := 0
 
-	return func() ([]*Tuple, error) {
+	return validate(func() ([]*Tuple, error) {
 		if tuples == nil {
 			tuples = make([]*Tuple, 0)
 			for {
@@ -130,5 +130,5 @@ func (o *OrderBy) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) 
 		currBatchSize := min(BatchSize, len(tuples) - idx)
 		idx += currBatchSize
 		return tuples[idx - currBatchSize : idx], nil
-	}, nil
+	}), nil
 }

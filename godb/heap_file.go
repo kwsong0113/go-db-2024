@@ -298,7 +298,7 @@ func (f *HeapFile) Iterator(tid TransactionID) (func() ([]*Tuple, error), error)
 		return nil, err
 	}
 	
-	return func() ([]*Tuple, error) {
+	return validate(func() ([]*Tuple, error) {
 		var returnBatch []*Tuple
 		for iter != nil {
 			batch, err := iter()
@@ -327,7 +327,7 @@ func (f *HeapFile) Iterator(tid TransactionID) (func() ([]*Tuple, error), error)
 			t.Desc = *f.desc
 		}
 		return returnBatch, nil
-	}, nil
+	}), nil
 }
 
 // internal strucuture to use as key for a heap page

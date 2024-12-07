@@ -92,7 +92,7 @@ func (a *Aggregator) Iterator(tid TransactionID) (func() ([]*Tuple, error), erro
 	// the iterator for iterating thru the finalized aggregation results for each group
 	var finalizedIter func() ([]*Tuple, error)
 
-	return func() ([]*Tuple, error) {
+	return validate(func() ([]*Tuple, error) {
 		// iterates thru all child tuples
 		for batch, err := childIter(); len(batch) > 0 || err != nil; batch, err = childIter() {
 			if err != nil {
@@ -135,7 +135,7 @@ func (a *Aggregator) Iterator(tid TransactionID) (func() ([]*Tuple, error), erro
 			}
 		}
 		return finalizedIter()
-	}, nil
+	}), nil
 }
 
 // Given a tuple t from a child iterator, return a tuple that identifies t's

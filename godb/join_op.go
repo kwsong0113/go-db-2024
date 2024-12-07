@@ -148,7 +148,7 @@ func (joinOp *EqualityJoin) Iterator(tid TransactionID) (func() ([]*Tuple, error
 	var leftIdx int
 	var rightIdx int
 
-	return func() ([]*Tuple, error) {
+	return validate(func() ([]*Tuple, error) {
 		var batch []*Tuple
 		for {
 			if hashTable == nil {
@@ -199,5 +199,5 @@ func (joinOp *EqualityJoin) Iterator(tid TransactionID) (func() ([]*Tuple, error
 			left = nil
 		}
 		return batch, nil
-	}, nil
+	}), nil
 }
