@@ -28,7 +28,7 @@ func makeBigTestFile(t *testing.T, bufferPoolSize int) (*BufferPool, *HeapFile, 
 }
 
 // size is the size of each table
-func makeBigTableAndVars(t *testing.T, size int) (TupleDesc, *HeapFile, *HeapFile, *BufferPool, TransactionID) {
+func makeBigTableAndVars(t *testing.T, size int, useSingle bool) (TupleDesc, *HeapFile, *HeapFile, *BufferPool, TransactionID) {
 	bp, hf1, hf2 := makeBigTestFile(t, 500)
 	td := TupleDesc{Fields: []FieldType{
 		{Fname: "name", Ftype: StringType},
@@ -58,6 +58,9 @@ func makeBigTableAndVars(t *testing.T, size int) (TupleDesc, *HeapFile, *HeapFil
 		err := hf1.insertTuple(&tup, tid)
 		if err != nil {
 			t.Fatalf(fmt.Sprintf("Error inserting tuple1: %s", err.Error()))
+		}
+		if useSingle {
+			continue
 		}
 		if i % 4 == 0 || i % 4 == 1 {
 			name = "sam"
@@ -103,7 +106,7 @@ func checkBatchSizeAndCount(t *testing.T, iter func() ([]*Tuple, error), expecte
 }
 
 func TestFilterBatch(t *testing.T) {
-	_, hf1, _, _, tid := makeBigTableAndVars(t, 10000)
+	_, hf1, _, _, tid := makeBigTableAndVars(t, 10000, true)
 	filter, err := NewFilter(
 		&ConstExpr{IntField{25}, IntType},
 		OpGt,
@@ -124,7 +127,7 @@ func TestFilterBatch(t *testing.T) {
 }
 
 func TestJoinBatch(t *testing.T) {
-	td, hf1, hf2, _, tid := makeBigTableAndVars(t, 1000)
+	td, hf1, hf2, _, tid := makeBigTableAndVars(t, 1000, false)
 	leftField := FieldExpr{td.Fields[0]}
 	join, err := NewJoin(hf1, &leftField, hf2, &leftField, 10000)
 	if err != nil {
@@ -141,7 +144,7 @@ func TestJoinBatch(t *testing.T) {
 }
 
 func TestProjectBatch(t *testing.T) {
-	td, hf1, _, _, tid := makeBigTableAndVars(t, 10000)
+	td, hf1, _, _, tid := makeBigTableAndVars(t, 10000, true)
 	var outNames = []string{"name"}
 	exprs := []Expr{&FieldExpr{td.Fields[0]}}
 	proj, _ := NewProjectOp(exprs, outNames, false, hf1)
@@ -156,7 +159,7 @@ func TestProjectBatch(t *testing.T) {
 }
 
 func TestLimitBatch(t *testing.T) {
-	_, hf1, _, _, tid := makeBigTableAndVars(t, 10000)
+	_, hf1, _, _, tid := makeBigTableAndVars(t, 10000, true)
 	limit := NewLimitOp(&ConstExpr{IntField{8000}, IntType}, hf1)
 	iter, err := limit.Iterator(tid)
 	if err != nil {
