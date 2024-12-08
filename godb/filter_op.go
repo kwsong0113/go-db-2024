@@ -22,32 +22,42 @@ func (f *Filter) Descriptor() *TupleDesc {
 // of the child iterator and return a tuple if it satisfies the predicate.
 //
 // HINT: you can use [types.evalPred] to compare two values.
-func (f *Filter) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
+func (f *Filter) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) {
 	// TODO: some code goes here
 	iter, err := f.child.Iterator(tid)
 	if err != nil {
 		return nil, err
 	}
-	return func() (*Tuple, error) {
-		for {
-			t, err := iter()
+	var currBatch []*Tuple
+	return validate(func() ([]*Tuple, error) {
+		for iter != nil {
+			batch, err := iter()
 			if err != nil {
 				return nil, err
 			}
-			if t == nil {
-				return nil, nil
+			if len(batch) == 0 {
+				iter = nil
+				return currBatch, nil
 			}
-			left, err := f.left.EvalExpr(t)
-			if err != nil {
-				return nil, err
+			for _, t := range batch {
+				left, err := f.left.EvalExpr(t)
+				if err != nil {
+					return nil, err
+				}
+				right, err := f.right.EvalExpr(t)
+				if err != nil {
+					return nil, err
+				}
+				if left.EvalPred(right, f.op) {
+					currBatch = append(currBatch, t)
+				}
 			}
-			right, err := f.right.EvalExpr(t)
-			if err != nil {
-				return nil, err
-			}
-			if left.EvalPred(right, f.op) {
-				return t, nil
+			if len(currBatch) >= BatchSize {
+				batch := currBatch[:BatchSize]
+				currBatch = currBatch[BatchSize:]
+				return batch, nil
 			}
 		}
-	}, nil
+		return nil, nil
+	}), nil
 }

@@ -42,7 +42,7 @@ func (p *Project) Descriptor() *TupleDesc {
 // implement this you will need to record in some data structure with the
 // distinct tuples seen so far. Note that support for the distinct keyword is
 // optional as specified in the lab 2 assignment.
-func (p *Project) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
+func (p *Project) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) {
 	// TODO: some code goes here
 	distinctTuples := make(map[any]bool)
 	childIter, err := p.child.Iterator(tid)
@@ -54,33 +54,48 @@ func (p *Project) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
 	for i, expr := range p.selectFields {
 		ftsToProject[i] = expr.GetExprType()
 	}
-	return func() (*Tuple, error) {
-		for {
-			t, err := childIter()
+	cachedBatch := make([]*Tuple, 0)
+	return validate(func() ([]*Tuple, error) {
+		currentBatch := make([]*Tuple, 0)
+		checkedCachedBatch := false
+		for batch, err := cachedBatch, error(nil); !checkedCachedBatch || len(batch) > 0 || err != nil; batch, err = childIter() {
 			if err != nil {
 				return nil, err
 			}
-			if t == nil {
-				return nil, nil
+			if !checkedCachedBatch {
+				checkedCachedBatch = true
+				cachedBatch = make([]*Tuple, 0)
 			}
-			fields := make([]DBValue, len(p.selectFields))
-			for i, expr := range p.selectFields {
-				outf, err := expr.EvalExpr(t)
-				if err != nil {
-					return nil, err
+			for idx, t := range batch {
+				fields := make([]DBValue, len(p.selectFields))
+				for i, expr := range p.selectFields {
+					outf, err := expr.EvalExpr(t)
+					if err != nil {
+						return nil, err
+					}
+					fields[i] = outf
 				}
-				fields[i] = outf
-			}
-			t = &Tuple{*desc, fields, nil}
-			if p.distinct {
-				if distinctTuples[t.tupleKey()] {
-					continue
-				} else {
-					distinctTuples[t.tupleKey()] = true
+				t = &Tuple{*desc, fields, nil}
+				if p.distinct {
+					if distinctTuples[t.tupleKey()] {
+						continue
+					} else {
+						distinctTuples[t.tupleKey()] = true
+					}
+				}
+				t.Desc = *desc
+				currentBatch = append(currentBatch, t)
+				if len(currentBatch) == BatchSize {
+					if idx+1 < len(batch) {
+						cachedBatch = batch[idx+1:]
+					} else {
+						cachedBatch = nil
+					}
+					return currentBatch, nil
 				}
 			}
-			t.Desc = *desc
-			return t, nil
 		}
-	}, nil
+		cachedBatch = nil
+		return currentBatch, nil
+	}), nil
 }

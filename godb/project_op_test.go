@@ -21,10 +21,11 @@ func TestProject(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("iter was nil")
 	}
-	tup, err := iter()
+	batch, err := iter()
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
+	tup := batch[0]
 	if len(tup.Fields) != 1 || tup.Desc.Fields[0].Fname != "outf" {
 		t.Errorf("invalid output tuple")
 	}
@@ -53,14 +54,14 @@ func TestProjectDistinctOptional(t *testing.T) {
 	}
 	cnt := 0
 	for {
-		tup, err := iter()
+		batch, err := iter()
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
-		if tup == nil {
+		if len(batch) == 0 {
 			break
 		}
-		cnt = cnt + 1
+		cnt += len(batch)
 	}
 	if cnt != 2 {
 		t.Errorf("expected two names, got %d", cnt)
@@ -90,10 +91,11 @@ func TestProjectOrdering(t *testing.T) {
 		t.Fatalf("iter was nil")
 	}
 
-	tupOut, err := iter()
+	batch, err := iter()
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
+	tupOut := batch[0]
 
 	var expectedDesc = TupleDesc{Fields: []FieldType{
 		{Fname: "out1", Ftype: IntType},

@@ -37,31 +37,31 @@ func readXaction(hf DBFile, bp *BufferPool, wg *sync.WaitGroup) {
 		cnt1 := 0
 
 		for {
-			t, err := it()
+			batch, err := it()
 			if err != nil {
 				// Assume this is because of a deadlock, restart txn
 				time.Sleep(time.Duration(rand.Intn(8)) * 100 * time.Microsecond)
 				goto start
 			}
-			if t == nil {
+			if len(batch) == 0 {
 				break
 			}
-			cnt1++
+			cnt1 += len(batch)
 		}
 
 		it, _ = hf.Iterator(tid)
 		cnt2 := 0
 		for {
-			t, err := it()
+			batch, err := it()
 			if err != nil {
 				// Assume this is because of a deadlock, restart txn
 				time.Sleep(time.Duration(rand.Intn(8)) * 100 * time.Microsecond)
 				goto start
 			}
-			if t == nil {
+			if len(batch) == 0 {
 				break
 			}
-			cnt2++
+			cnt2 += len(batch)
 		}
 		if cnt1 == cnt2 || pgCnt1 != hf.NumPages() {
 			//fmt.Printf("read same number of tuples both iterators (%d)\n", cnt1)
@@ -203,13 +203,15 @@ func testTransactionComplete(t *testing.T, commit bool) {
 	iter := heapp.tupleIter()
 
 	found := false
-	for tup, err := iter(); tup != nil || err != nil; tup, err = iter() {
+	for batch, err := iter(); len(batch) > 0 || err != nil; batch, err = iter() {
 		if err != nil {
 			t.Fatalf("Iterator error")
 		}
-		if t1.equals(tup) {
-			found = true
-			break
+		for _, tup := range batch {
+			if t1.equals(tup) {
+				found = true
+				break
+			}
 		}
 	}
 
@@ -236,13 +238,13 @@ func (i *Singleton) Descriptor() *TupleDesc {
 	return &i.tup.Desc
 }
 
-func (i *Singleton) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
-	return func() (*Tuple, error) {
+func (i *Singleton) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) {
+	return func() ([]*Tuple, error) {
 		if i.ran {
 			return nil, nil
 		}
 		i.ran = true
-		return &i.tup, nil
+		return []*Tuple{&i.tup}, nil
 	}, nil
 }
 
@@ -284,11 +286,12 @@ func validateTransactions(t *testing.T, threads int) {
 				continue
 			}
 
-			readTup, err := iter1()
+			readBatch, err := iter1()
 			if err != nil {
 				sleepAfterDeadlock(thrId, err)
 				continue
 			}
+			readTup := readBatch[0]
 
 			var writeTup = Tuple{
 				Desc: readTup.Desc,
@@ -307,7 +310,7 @@ func validateTransactions(t *testing.T, threads int) {
 				sleepAfterDeadlock(thrId, err)
 				continue
 			}
-			if delCnt.Fields[0].(IntField).Value != 1 {
+			if delCnt[0].Fields[0].(IntField).Value != 1 {
 				t.Errorf("Delete Op should return 1")
 			}
 			iop := NewInsertOp(hf, &Singleton{writeTup, false})
@@ -321,7 +324,7 @@ func validateTransactions(t *testing.T, threads int) {
 				continue
 			}
 
-			if insCnt.Fields[0].(IntField).Value != 1 {
+			if insCnt[0].Fields[0].(IntField).Value != 1 {
 				t.Errorf("Insert Op should return 1")
 			}
 
@@ -350,7 +353,8 @@ func validateTransactions(t *testing.T, threads int) {
 	tid := NewTID()
 	bp.BeginTransaction(tid)
 	iter, _ := hf.Iterator(tid)
-	tup, _ := iter()
+	batch, _ := iter()
+	tup := batch[0]
 
 	diff := tup.Fields[1].(IntField).Value - t2.Fields[1].(IntField).Value
 	if diff != int64(threads) {
@@ -408,12 +412,14 @@ func TestTransactionAbortEviction(t *testing.T) {
 		if err != nil {
 			return false, err
 		}
-		for tup, err := iter(); tup != nil; tup, err = iter() {
+		for batch, err := iter(); len(batch) > 0 || err != nil; batch, err = iter() {
 			if err != nil {
 				return false, err
 			}
-			if t0.equals(tup) {
-				return true, nil
+			for _, tup := range batch {
+				if t0.equals(tup) {
+					return true, nil
+				}
 			}
 		}
 		return false, nil

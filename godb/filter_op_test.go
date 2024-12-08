@@ -34,12 +34,11 @@ func TestFilterInt(t *testing.T) {
 
 	cnt := 0
 	for {
-		tup, _ := iter()
-		if tup == nil {
+		batch, _ := iter()
+		if len(batch) == 0 {
 			break
 		}
-		t.Logf("filter passed tup %d: %v\n", cnt, tup)
-		cnt++
+		cnt += len(batch)
 	}
 	if cnt != 1 {
 		t.Errorf("unexpected number of results")
@@ -65,12 +64,11 @@ func TestFilterString(t *testing.T) {
 
 	cnt := 0
 	for {
-		tup, _ := iter()
-		if tup == nil {
+		batch, _ := iter()
+		if len(batch) == 0 {
 			break
 		}
-		t.Logf("filter passed tup %d: %v\n", cnt, tup)
-		cnt++
+		cnt += len(batch)
 	}
 	if cnt != 1 {
 		t.Errorf("unexpected number of results")

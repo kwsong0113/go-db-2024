@@ -44,18 +44,20 @@ func computeFieldSum(bp *BufferPool, fileName string, td TupleDesc, sumField str
 	}
 	sum := 0
 	for {
-		tuple, err := iter()
+		batch, err := iter()
 		if err != nil {
 			return 0, err
 		}
-		if tuple == nil {
+		if len(batch) == 0 {
 			break
 		}
-		tuple, err = tuple.project([]FieldType{{sumField, "", IntType}})
-		if err != nil {
-			return 0, err
+		for _, tuple := range batch {
+			tuple, err = tuple.project([]FieldType{{sumField, "", IntType}})
+			if err != nil {
+				return 0, err
+			}
+			sum += int(tuple.Fields[0].(IntField).Value)
 		}
-		sum += int(tuple.Fields[0].(IntField).Value)
 	}
 	return sum, nil
 }

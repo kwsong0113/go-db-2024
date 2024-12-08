@@ -62,7 +62,7 @@ func (a *Aggregator) Descriptor() *TupleDesc {
 // iterate through each group's result. In the case where there is no group-by,
 // the iterator simply iterates through only one tuple, representing the
 // aggregation of all child tuples.
-func (a *Aggregator) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
+func (a *Aggregator) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) {
 	// the child iterator
 	childIter, err := a.child.Iterator(tid)
 	if err != nil {
@@ -90,36 +90,34 @@ func (a *Aggregator) Iterator(tid TransactionID) (func() (*Tuple, error), error)
 	// the list of group key tuples
 	var groupByList []*Tuple
 	// the iterator for iterating thru the finalized aggregation results for each group
-	var finalizedIter func() (*Tuple, error)
+	var finalizedIter func() ([]*Tuple, error)
 
-	return func() (*Tuple, error) {
+	return validate(func() ([]*Tuple, error) {
 		// iterates thru all child tuples
-		for t, err := childIter(); t != nil || err != nil; t, err = childIter() {
+		for batch, err := childIter(); len(batch) > 0 || err != nil; batch, err = childIter() {
 			if err != nil {
 				return nil, err
 			}
-			if t == nil {
-				return nil, nil
-			}
+			for _, t := range batch {
+				if a.groupByFields == nil { // adds tuple to the aggregation in the case of no group-by
+					for i := 0; i < len(a.newAggState); i++ {
+						(*aggState[DefaultGroup])[i].AddTuple(t)
+					}
+				} else { // adds tuple to the aggregation with grouping
+					keygenTup, err := extractGroupByKeyTuple(a, t)
+					if err != nil {
+						return nil, err
+					}
 
-			if a.groupByFields == nil { // adds tuple to the aggregation in the case of no group-by
-				for i := 0; i < len(a.newAggState); i++ {
-					(*aggState[DefaultGroup])[i].AddTuple(t)
-				}
-			} else { // adds tuple to the aggregation with grouping
-				keygenTup, err := extractGroupByKeyTuple(a, t)
-				if err != nil {
-					return nil, err
-				}
+					key := keygenTup.tupleKey()
+					if aggState[key] == nil {
+						asNew := make([]AggState, len(a.newAggState))
+						aggState[key] = &asNew
+						groupByList = append(groupByList, keygenTup)
+					}
 
-				key := keygenTup.tupleKey()
-				if aggState[key] == nil {
-					asNew := make([]AggState, len(a.newAggState))
-					aggState[key] = &asNew
-					groupByList = append(groupByList, keygenTup)
+					addTupleToGrpAggState(a, t, aggState[key])
 				}
-
-				addTupleToGrpAggState(a, t, aggState[key])
 			}
 		}
 
@@ -130,14 +128,14 @@ func (a *Aggregator) Iterator(tid TransactionID) (func() (*Tuple, error), error)
 					newTup := (*aggState[DefaultGroup])[i].Finalize()
 					tup = joinTuples(tup, newTup)
 				}
-				finalizedIter = func() (*Tuple, error) { return nil, nil }
-				return tup, nil
+				finalizedIter = func() ([]*Tuple, error) { return nil, nil }
+				return []*Tuple{tup}, nil
 			} else {
 				finalizedIter = getFinalizedTuplesIterator(a, groupByList, aggState)
 			}
 		}
 		return finalizedIter()
-	}, nil
+	}), nil
 }
 
 // Given a tuple t from a child iterator, return a tuple that identifies t's
@@ -186,19 +184,20 @@ func addTupleToGrpAggState(a *Aggregator, t *Tuple, grpAggState *[]AggState) {
 // HINT: you can call [aggState.Finalize] to get the field for each AggState.
 // Then, you should get the groupByTuple and merge it with each of the AggState
 // tuples using the joinTuples function in tuple.go you wrote in lab 1.
-func getFinalizedTuplesIterator(a *Aggregator, groupByList []*Tuple, aggState map[any]*[]AggState) func() (*Tuple, error) {
+func getFinalizedTuplesIterator(a *Aggregator, groupByList []*Tuple, aggState map[any]*[]AggState) func() ([]*Tuple, error) {
 	// TODO: some code goes here
 	groupIdx := 0
-	return func() (*Tuple, error) {
+	return func() ([]*Tuple, error) {
 		// TODO: some code goes here
-		if groupIdx >= len(groupByList) {
-			return nil, nil
+		var batch []*Tuple
+		for groupIdx < len(groupByList) && len(batch) < BatchSize {
+			groupByTup := groupByList[groupIdx]
+			for _, as := range *aggState[groupByTup.tupleKey()] {
+				groupByTup = joinTuples(groupByTup, as.Finalize())
+			}
+			batch = append(batch, groupByTup)
+			groupIdx++
 		}
-		groupByTup := groupByList[groupIdx]
-		for _, as := range *aggState[groupByTup.tupleKey()] {
-			groupByTup = joinTuples(groupByTup, as.Finalize())
-		}
-		groupIdx++
-		return groupByTup, nil
+		return batch, nil
 	}
 }

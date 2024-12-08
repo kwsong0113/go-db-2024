@@ -53,11 +53,11 @@ func testLimitCount(t *testing.T, n int) {
 
 	cnt := 0
 	for {
-		tup, _ := iter()
-		if tup == nil {
+		batch, _ := iter()
+		if len(batch) == 0 {
 			break
 		}
-		cnt++
+		cnt += len(batch)
 	}
 	if cnt != n {
 		t.Errorf("unexpected number of results")

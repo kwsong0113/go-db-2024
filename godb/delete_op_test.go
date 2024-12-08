@@ -35,15 +35,16 @@ func TestDelete(t *testing.T) {
 	tid = BeginTransactionForTest(t, bp)
 	iter, _ := dop.Iterator(tid)
 	if iter == nil {
-		t.Fatalf("iter was nil")
+		t.Fatalf("Iterator was nil")
 	}
-	tup, err := iter()
+	batch, err := iter()
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	if tup == nil {
-		t.Fatalf("insert did not return tuple")
+	if len(batch) != 1 {
+		t.Fatalf("Expected a single tuple, got %d", len(batch))
 	}
+	tup := batch[0]
 	intField, ok := tup.Fields[0].(IntField)
 	if !ok || len(tup.Fields) != 1 || intField.Value != 1 {
 		t.Fatalf("invalid output tuple")
@@ -56,11 +57,11 @@ func TestDelete(t *testing.T) {
 
 	cnt := 0
 	for {
-		tup, _ := iter()
-		if tup == nil {
+		batch, _ := iter()
+		if len(batch) == 0 {
 			break
 		}
-		cnt++
+		cnt += len(batch)
 	}
 	if cnt != 1 {
 		t.Errorf("unexpected number of results after deletion")

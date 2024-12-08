@@ -26,24 +26,27 @@ func (v *ValueOp) Descriptor() *TupleDesc {
 	return v.td
 }
 
-func (v *ValueOp) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
+func (v *ValueOp) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) {
 	curTup := 0
-	return func() (*Tuple, error) {
-		if curTup >= len(v.exprs) {
-			return nil, nil
-		}
-		tup := v.exprs[curTup]
-		fields := make([]DBValue, len(tup))
-		for i, field := range tup {
-			outf, err := field.EvalExpr(nil)
-			if err != nil {
-				return nil, err
+	return validate(func() ([]*Tuple, error) {
+		batch := make([]*Tuple, 0)
+		for curTup < len(v.exprs) {
+			tup := v.exprs[curTup]
+			fields := make([]DBValue, len(tup))
+			for i, field := range tup {
+				outf, err := field.EvalExpr(nil)
+				if err != nil {
+					return nil, err
+				}
+				fields[i] = outf
 			}
-			fields[i] = outf
+
+			curTup++
+			batch = append(batch, &Tuple{*v.td, fields, nil})
+			if len(batch) == BatchSize {
+				break
+			}
 		}
-
-		curTup++
-
-		return &Tuple{*v.td, fields, nil}, nil
-	}, nil
+		return batch, nil
+	}), nil
 }

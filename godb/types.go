@@ -22,6 +22,7 @@ const (
 	IllegalOperationError   GoDBErrorCode = iota
 	DeadlockError           GoDBErrorCode = iota
 	IllegalTransactionError GoDBErrorCode = iota
+	BatchSizeExceededError  GoDBErrorCode = iota
 )
 
 //go:generate stringer -type=GoDBErrorCode
@@ -63,7 +64,7 @@ type DBFile interface {
 
 type Operator interface {
 	Descriptor() *TupleDesc
-	Iterator(tid TransactionID) (func() (*Tuple, error), error)
+	Iterator(tid TransactionID) (func() ([]*Tuple, error), error)
 }
 
 type BoolOp int

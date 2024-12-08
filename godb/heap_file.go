@@ -275,13 +275,13 @@ func (f *HeapFile) Descriptor() *TupleDesc {
 // set appropriate so that [deleteTuple] will work (see additional comments there).
 // Make sure to set the returned tuple's TupleDescriptor to the TupleDescriptor of
 // the HeapFile. This allows it to correctly capture the table qualifier.
-func (f *HeapFile) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
+func (f *HeapFile) Iterator(tid TransactionID) (func() ([]*Tuple, error), error) {
 	// TODO: some code goes here
 	numPages := f.NumPages()
 	pageNo := -1
-	var iter func() (*Tuple, error)
+	var iter func() ([]*Tuple, error)
 
-	goToNextPage := func() (func() (*Tuple, error), error) {
+	goToNextPage := func() (func() ([]*Tuple, error), error) {
 		pageNo++
 		if pageNo >= numPages {
 			return nil, nil
@@ -293,28 +293,41 @@ func (f *HeapFile) Iterator(tid TransactionID) (func() (*Tuple, error), error) {
 		return page.(*heapPage).tupleIter(), nil
 	}
 	iter, err := goToNextPage()
+	var currBatch []*Tuple
 	if err != nil {
 		return nil, err
 	}
 	
-	return func() (*Tuple, error) {
+	return validate(func() ([]*Tuple, error) {
+		var returnBatch []*Tuple
 		for iter != nil {
-			t, err := iter()
+			batch, err := iter()
 			if err != nil {
 				return nil, err
 			}
-			if t == nil {
+			if len(batch) == 0 {
 				iter, err = goToNextPage()
 				if err != nil {
 					return nil, err
 				}
 				continue
 			}
-			t.Desc = *f.desc
-			return t, nil
+			currBatch = append(currBatch, batch...)
+			if len(currBatch) >= BatchSize {
+				returnBatch = currBatch[:BatchSize]
+				currBatch = currBatch[BatchSize:]
+				break
+			}
 		}
-		return nil, nil
-	}, nil
+		if len(returnBatch) == 0 {
+			returnBatch = currBatch
+			currBatch = nil
+		}
+		for _, t := range returnBatch {
+			t.Desc = *f.desc
+		}
+		return returnBatch, nil
+	}), nil
 }
 
 // internal strucuture to use as key for a heap page

@@ -60,17 +60,19 @@ func TestOrderBy(t *testing.T) {
 	}
 	var last string
 	for {
-		tup, _ := iter()
-		if tup == nil {
+		batch, _ := iter()
+		if len(batch) == 0 {
 			break
 		}
-		fval := tup.Fields[0].(StringField).Value
-		if last != "" {
-			if fval > last {
-				t.Fatalf("data was not descending, as expected")
+		for _, tup := range batch {
+			fval := tup.Fields[0].(StringField).Value
+			if last != "" {
+				if fval > last {
+					t.Fatalf("data was not descending, as expected")
+				}
 			}
+			last = fval
 		}
-		last = fval
 	}
 
 	for i := range bs {
@@ -85,17 +87,19 @@ func TestOrderBy(t *testing.T) {
 	iter, _ = oby.Iterator(tid)
 	last = ""
 	for {
-		tup, _ := iter()
-		if tup == nil {
+		batch, _ := iter()
+		if batch == nil {
 			break
 		}
-		fval := tup.Fields[0].(StringField).Value
-		if last != "" {
-			if fval < last {
-				t.Fatalf("data was not ascending, as expected")
+		for _, tup := range batch {
+			fval := tup.Fields[0].(StringField).Value
+			if last != "" {
+				if fval < last {
+					t.Fatalf("data was not ascending, as expected")
+				}
 			}
+			last = fval
 		}
-		last = fval
 	}
 }
 
@@ -159,7 +163,7 @@ func TestOrderByMultiField(t *testing.T) {
 	for i := 0; i < len(ascDescs); i++ {
 		ascDesc := ascDescs[i]
 		expected := expectedAnswers[i]
-		result := []Tuple{}
+		result := make([]*Tuple, 0)
 		oby, err := NewOrderBy(exprs, hf, ascDesc)
 		if err != nil {
 			t.Fatalf(err.Error())
@@ -170,11 +174,11 @@ func TestOrderByMultiField(t *testing.T) {
 		}
 
 		for {
-			tup, _ := iter()
-			if tup == nil {
+			batch, _ := iter()
+			if len(batch) == 0 {
 				break
 			}
-			result = append(result, *tup)
+			result = append(result, batch...)
 
 		}
 		if len(result) != len(expected) {
@@ -223,12 +227,12 @@ func TestOrderByFieldsOrder(t *testing.T) {
 		{Fname: "c", Ftype: IntType},
 	}}
 
-	tupOut, err := iter()
+	batch, err := iter()
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
 
-	if !expectedDesc.equals(&tupOut.Desc) {
+	if !expectedDesc.equals(&batch[0].Desc) {
 		t.Fatalf("Unexpected descriptor of ordered tuple")
 	}
 }

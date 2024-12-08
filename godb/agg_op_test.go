@@ -29,14 +29,14 @@ func TestAggSimpleSum(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Iterator was nil")
 	}
-	tup, err := iter()
+	batch, err := iter()
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	if tup == nil {
-		t.Fatalf("Expected non-null tuple")
+	if len(batch) != 1 {
+		t.Fatalf("Expected a single tuple, got %d", len(batch))
 	}
-	sum := tup.Fields[0].(IntField).Value
+	sum := batch[0].Fields[0].(IntField).Value
 	if sum != 1024 {
 		t.Errorf("unexpected sum")
 	}
@@ -66,14 +66,14 @@ func TestAggMinStringAgg(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Iterator was nil")
 	}
-	tup, err := iter()
+	batch, err := iter()
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	if tup == nil {
-		t.Fatalf("Expected non-null tuple")
+	if len(batch) != 1 {
+		t.Fatalf("Expected a single tuple, got %d", len(batch))
 	}
-	min := tup.Fields[0].(StringField).Value
+	min := batch[0].Fields[0].(StringField).Value
 	if min != "george jones" {
 		t.Errorf("incorrect min")
 	}
@@ -103,14 +103,14 @@ func TestAggSimpleCount(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Iterator was nil")
 	}
-	tup, err := iter()
+	batch, err := iter()
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	if tup == nil {
-		t.Fatalf("Expected non-null tuple")
+	if len(batch) != 1 {
+		t.Fatalf("Expected a single tuple, got %d", len(batch))
 	}
-	cnt := tup.Fields[0].(IntField).Value
+	cnt := batch[0].Fields[0].(IntField).Value
 	if cnt != 2 {
 		t.Errorf("unexpected count")
 	}
@@ -146,13 +146,14 @@ func TestAggMulti(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Iterator was nil")
 	}
-	tup, err := iter()
+	batch, err := iter()
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	if tup == nil {
-		t.Fatalf("Expected non-null tuple")
+	if len(batch) != 1 {
+		t.Fatalf("Expected a single tuple, got %d", len(batch))
 	}
+	tup := batch[0]
 	cnt := tup.Fields[0].(IntField).Value
 	if cnt != 2 {
 		t.Errorf("unexpected count")
@@ -306,14 +307,14 @@ func TestAggFilterCount(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Iterator was nil")
 	}
-	tup, err := iter()
+	batch, err := iter()
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	if tup == nil {
-		t.Fatalf("Expected non-null tuple")
+	if len(batch) != 1 {
+		t.Fatalf("Expected a single tuple, got %d", len(batch))
 	}
-	cnt := tup.Fields[0].(IntField).Value
+	cnt := batch[0].Fields[0].(IntField).Value
 	if cnt != 1 {
 		t.Errorf("unexpected count")
 	}
@@ -343,14 +344,14 @@ func TestAggRepeatedIteration(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Iterator was nil")
 	}
-	tup, err := iter()
+	batch, err := iter()
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	if tup == nil {
-		t.Fatalf("Expected non-null tuple")
+	if len(batch) != 1 {
+		t.Fatalf("Expected a single tuple, got %d", len(batch))
 	}
-	cnt := tup.Fields[0].(IntField).Value
+	cnt := batch[0].Fields[0].(IntField).Value
 	if cnt != 2 {
 		t.Errorf("unexpected count")
 	}
@@ -361,14 +362,14 @@ func TestAggRepeatedIteration(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Iterator was nil")
 	}
-	tup, err = iter()
+	batch, err = iter()
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	if tup == nil {
-		t.Fatalf("Expected non-null tuple")
+	if len(batch) != 1 {
+		t.Fatalf("Expected a single tuple, got %d", len(batch))
 	}
-	cnt2 := tup.Fields[0].(IntField).Value
+	cnt2 := batch[0].Fields[0].(IntField).Value
 	if cnt != cnt2 {
 		t.Errorf("count changed on repeated iteration")
 	}

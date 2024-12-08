@@ -88,13 +88,13 @@ func TestParseEasy(t *testing.T) {
 				t.Fatalf(err.Error())
 			}
 			for {
-				tup, err := resultIter()
+				batch, err := resultIter()
 				if err != nil {
 					t.Fatalf(err.Error())
 				}
 
-				if tup != nil {
-					resultSet = append(resultSet, tup)
+				if len(batch) > 0 {
+					resultSet = append(resultSet, batch...)
 				} else {
 					break
 				}
@@ -114,20 +114,21 @@ func TestParseEasy(t *testing.T) {
 			}
 			fmt.Printf("%s\n", plan.Descriptor().HeaderString(true))
 			for {
-				tup, err := iter()
+				batch, err := iter()
 				if err != nil {
 					t.Errorf("%s", err.Error())
 					break
 				}
-				if tup == nil {
+				if len(batch) == 0 {
 					break
-				} else {
-					fmt.Printf("%s\n", tup.PrettyPrintString(true))
 				}
-				nresults++
-				if save {
-					fmt.Fprintf(outfile_csv, "%s\n", tup.PrettyPrintString(false))
-					//outfile.insertTuple(tup, tid)
+				for _, tup := range batch {
+					fmt.Printf("%s\n", tup.PrettyPrintString(true))
+					nresults++
+					if save {
+						fmt.Fprintf(outfile_csv, "%s\n", tup.PrettyPrintString(false))
+						//outfile.insertTuple(tup, tid)
+					}
 				}
 			}
 			fmt.Printf("(%d results)\n\n", nresults)
